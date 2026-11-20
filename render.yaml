@@ -3,7 +3,7 @@ services:
     name: summit-air-demo
     runtime: python
     region: virginia
-    plan: starter
+    plan: free
     autoDeployTrigger: "off"
     buildCommand: uv sync --locked --no-dev
     startCommand: .venv/bin/uvicorn revin_take_home.app:create_app --factory --host 0.0.0.0 --port $PORT
