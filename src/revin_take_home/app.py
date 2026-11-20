@@ -21,12 +21,14 @@ from .demo import DemoDirectory
 class Settings(BaseModel):
     assistant_id: UUID
     webhook_secret: SecretStr = Field(min_length=32)
+    demo_caller_number: str | None = Field(default=None, repr=False)
 
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
             assistant_id=os.environ["VAPI_ASSISTANT_ID"],
             webhook_secret=os.environ["VAPI_WEBHOOK_SECRET"],
+            demo_caller_number=os.environ.get("DEMO_CALLER_NUMBER"),
         )
 
 
@@ -69,7 +71,7 @@ def create_app(
     directory: CustomerDirectory | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
-    directory = directory if directory is not None else DemoDirectory()
+    directory = directory if directory is not None else DemoDirectory(settings.demo_caller_number)
     app = FastAPI(title="Summit Air demo — caller lookup")
     bearer = HTTPBearer(auto_error=False)
 
