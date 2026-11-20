@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from revin_take_home.app import Settings, create_app
-from revin_take_home.demo import UnavailableDirectory
+from revin_take_home.demo import DemoDirectory, UnavailableDirectory
 
 ASSISTANT_ID = "c1d4d1d8-b2e4-48b9-9ffe-ca4bbea2dd43"
 SECRET = "local-test-only-secret-0123456789abcdef"
@@ -14,7 +14,8 @@ AUTH = {"Authorization": f"Bearer {SECRET}"}
 
 def client(directory=None):
     return TestClient(create_app(
-        Settings(assistant_id=ASSISTANT_ID, webhook_secret=SECRET), directory
+        Settings(assistant_id=ASSISTANT_ID, webhook_secret=SECRET),
+        directory if directory is not None else DemoDirectory()
     ))
 
 
@@ -124,35 +125,22 @@ def test_health_check_has_no_customer_data():
     assert client().get("/health").json() == {"status": "ok"}
 
 
-def test_configured_test_phone_matches_synthetic_maya_only_in_that_app(monkeypatch):
-    monkeypatch.setenv("VAPI_ASSISTANT_ID", ASSISTANT_ID)
-    monkeypatch.setenv("VAPI_WEBHOOK_SECRET", SECRET)
-    monkeypatch.setenv("DEMO_CALLER_NUMBER", "+1 (212) 555-0104")
-    configured = TestClient(create_app())
-    response = configured.post(
-        "/vapi/assistant-request", json=event("+12125550104"), headers=AUTH
-    )
-    result = context(response)
-    assert result["lookup_status"] == "matched_single"
-    assert result["candidate"] == {"customer_id": "demo_maya", "first_name": "Maya"}
-    assert result["identity_status"] == "unconfirmed"
-    assert result["membership_status"] == "unknown"
-    assert "+12125550104" not in response.text
-    # Other callers remain unknown and the shared-number fixture stays ambiguous.
-    assert context(configured.post(
-        "/vapi/assistant-request", json=event("+12125550103"), headers=AUTH
-    ))["lookup_status"] == "no_match"
-    assert context(configured.post(
-        "/vapi/assistant-request", json=event("+12125550102"), headers=AUTH
-    ))["lookup_status"] == "matched_multiple"
-    # Without the optional setting, no test-phone alias leaks across app instances.
-    assert context(post(event("+12125550104")))["lookup_status"] == "no_match"
-
-
-@pytest.mark.parametrize("number", ["not-a-number", "+12125550102"])
-def test_invalid_demo_phone_configuration_fails_at_startup(number):
-    with pytest.raises(ValueError):
-        create_app(Settings(
-            assistant_id=ASSISTANT_ID, webhook_secret=SECRET,
-            demo_caller_number=number,
+def test_unconfigured_database_returns_generic_intake_not_hardcoded_customers():
+    with TestClient(create_app(Settings(
+        assistant_id=ASSISTANT_ID, webhook_secret=SECRET,
+    ))) as unconfigured:
+        result = context(unconfigured.post(
+            "/vapi/assistant-request", json=event(), headers=AUTH
         ))
+    assert result["lookup_status"] == "lookup_unavailable"
+    assert result["candidate"] is None
+
+
+@pytest.mark.parametrize("config", [
+    {"supabase_url": "https://test.supabase.co"},
+    {"supabase_secret_key": "sb_secret_test"},
+    {"supabase_url": "http://test.supabase.co", "supabase_secret_key": "sb_secret_test"},
+])
+def test_incomplete_database_config_fails_at_startup(config):
+    with pytest.raises(ValidationError):
+        Settings(assistant_id=ASSISTANT_ID, webhook_secret=SECRET, **config)

@@ -17,3 +17,7 @@ services:
         sync: false
       - key: VAPI_WEBHOOK_SECRET
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false

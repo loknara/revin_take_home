@@ -1,7 +1,7 @@
 """The first backend boundary: caller number -> candidate context.
 
-No provider webhook, database, identity confirmation, or membership lookup yet.
-The caller number will come from authenticated provider metadata, not the LLM.
+Storage-independent lookup contract; no identity confirmation or membership yet.
+The caller number comes from authenticated provider metadata, not the LLM.
 """
 
 import asyncio

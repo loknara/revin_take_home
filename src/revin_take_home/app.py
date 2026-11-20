@@ -1,4 +1,4 @@
-"""Vapi call-start adapter. Synthetic lookup only; no audio or persistence.
+"""Vapi call-start adapter. Customer lookup only; no audio or saved call intake.
 
 Run: uv run --env-file .env uvicorn revin_take_home.app:create_app --factory
 Contract: https://docs.vapi.ai/api-reference/webhooks/server-message
@@ -7,28 +7,39 @@ Contract: https://docs.vapi.ai/api-reference/webhooks/server-message
 import json
 import os
 import secrets
+from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
-from .caller_context import CustomerDirectory, bootstrap_context, normalize_number
-from .demo import DemoDirectory
+from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_context, normalize_number
+from .supabase_directory import SupabaseDirectory, supabase_client
 
 
 class Settings(BaseModel):
     assistant_id: UUID
     webhook_secret: SecretStr = Field(min_length=32)
-    demo_caller_number: str | None = Field(default=None, repr=False)
+    supabase_url: str | None = None
+    supabase_secret_key: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def check_supabase_config(self):
+        if bool(self.supabase_url) != bool(self.supabase_secret_key):
+            raise ValueError("Set both SUPABASE_URL and SUPABASE_SECRET_KEY")
+        if self.supabase_url and not self.supabase_url.startswith("https://"):
+            raise ValueError("SUPABASE_URL must use HTTPS")
+        return self
 
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(
             assistant_id=os.environ["VAPI_ASSISTANT_ID"],
             webhook_secret=os.environ["VAPI_WEBHOOK_SECRET"],
-            demo_caller_number=os.environ.get("DEMO_CALLER_NUMBER"),
+            supabase_url=os.environ.get("SUPABASE_URL") or None,
+            supabase_secret_key=os.environ.get("SUPABASE_SECRET_KEY") or None,
         )
 
 
@@ -66,13 +77,34 @@ class Envelope(BaseModel):
     message: AssistantRequest
 
 
+class UnconfiguredDirectory:
+    async def find_by_phone(self, number: str):
+        raise LookupUnavailable("Customer directory not configured")
+
+
 def create_app(
     settings: Settings | None = None,
     directory: CustomerDirectory | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
-    directory = directory if directory is not None else DemoDirectory(settings.demo_caller_number)
-    app = FastAPI(title="Summit Air demo — caller lookup")
+    db_client = None
+    if directory is None and settings.supabase_url and settings.supabase_secret_key:
+        db_client = supabase_client(
+            settings.supabase_url, settings.supabase_secret_key.get_secret_value()
+        )
+        directory = SupabaseDirectory(db_client)
+    if directory is None:
+        directory = UnconfiguredDirectory()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        try:
+            yield
+        finally:
+            if db_client is not None:
+                await db_client.aclose()
+
+    app = FastAPI(title="Summit Air demo — caller lookup", lifespan=lifespan)
     bearer = HTTPBearer(auto_error=False)
 
     async def authenticate(
@@ -97,7 +129,8 @@ def create_app(
     async def assistant_request(body: Envelope) -> dict:
         message = body.message
         context = await bootstrap_context(
-            message.call.id, message.originating_number(), directory
+            message.call.id, message.originating_number(),
+            directory,
         )
         # Vapi substitutes this string into {{caller_context}} in the prompt.
         # Supplying variables alone does not put them in the model's context.

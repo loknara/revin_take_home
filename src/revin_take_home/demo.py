@@ -3,7 +3,7 @@
 import asyncio
 import json
 
-from .caller_context import Candidate, LookupUnavailable, bootstrap_context, normalize_number
+from .caller_context import Candidate, LookupUnavailable, bootstrap_context
 
 MAYA = Candidate(customer_id="demo_maya", first_name="Maya")
 OMAR = Candidate(customer_id="demo_omar", first_name="Omar")
@@ -13,17 +13,7 @@ LEAH = Candidate(customer_id="demo_leah", first_name="Leah")
 class DemoDirectory:
     """In-memory fixtures only. No real customer or membership claims."""
 
-    def __init__(self, matched_caller_number: str | None = None) -> None:
-        # Optional test-phone alias for Maya. Never store a real number in source.
-        self.matched_caller_number = normalize_number(matched_caller_number)
-        if matched_caller_number and self.matched_caller_number is None:
-            raise ValueError("DEMO_CALLER_NUMBER must be a possible phone number")
-        if self.matched_caller_number == "+12125550102":
-            raise ValueError("DEMO_CALLER_NUMBER cannot replace the shared-number fixture")
-
     async def find_by_phone(self, number: str) -> tuple[Candidate, ...]:
-        if self.matched_caller_number and number == self.matched_caller_number:
-            return (MAYA,)
         return {
             "+12125550101": (MAYA,),
             "+12125550102": (OMAR, LEAH),
