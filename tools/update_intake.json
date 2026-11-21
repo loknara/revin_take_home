@@ -1,0 +1,72 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "update_intake",
+    "description": "Save newly stated or corrected intake facts for the current call. This does not book service, verify identity or membership, or alert dispatch. Use the latest returned revision. Call sequentially, never in parallel. The server supplies call identity.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_revision",
+        "caller_quote",
+        "changes"
+      ],
+      "properties": {
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0 for the first update; otherwise use state.revision from the latest tool result."
+        },
+        "caller_quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "Short quote of what the caller actually said supporting these changes. Never invent a quote."
+        },
+        "changes": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "caller_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "property_type": {
+              "type": "string",
+              "enum": [
+                "residential",
+                "commercial",
+                "unknown"
+              ]
+            },
+            "issue_summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "service_address": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "address_confirmed": {
+              "type": "boolean",
+              "description": "True only after the caller explicitly confirms the previously saved address. Never include service_address in the same update."
+            }
+          },
+          "description": "Only changed fields. Omit unknown/unchanged values; do not send nulls."
+        },
+        "confirmation_address": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Required when address_confirmed is true. Copy the exact service_address from the current saved state."
+        }
+      }
+    }
+  },
+  "messages": []
+}
