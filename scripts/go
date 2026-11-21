@@ -1,0 +1,11 @@
+#!/bin/sh
+# Offline tests first. With no arguments, print the plan and make no API requests.
+set -eu
+cd "$(dirname "$0")/.."
+UV_BIN="${UV_BIN:-uv}"
+"$UV_BIN" run pytest -q
+if [ -f .env ]; then
+    exec "$UV_BIN" run --env-file .env python -m revin_take_home.evaluation "$@"
+else
+    exec "$UV_BIN" run python -m revin_take_home.evaluation "$@"
+fi

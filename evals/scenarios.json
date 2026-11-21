@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "active_member",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You need annual AC maintenance. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes.",
+      "expected": {
+        "details": {
+          "service_type": "maintenance",
+          "address_confirmed": true,
+          "service_address": "152 West 72nd Street",
+          "service_unit": "4B",
+          "service_zip": "10023"
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "active"
+      }
+    },
+    {
+      "id": "alternate_number",
+      "fixture": "unknown",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You need annual maintenance and are calling from a different phone. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes.",
+      "expected": {
+        "details": {
+          "service_type": "maintenance",
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "active"
+      }
+    },
+    {
+      "id": "shared_number_nonmember",
+      "fixture": "shared",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You are Omar Rivera. You need annual AC maintenance at your residence: 310 West 80th Street, apartment 2A, ZIP 10024. You do not have a maintenance plan.",
+      "expected": {
+        "details": {
+          "service_type": "maintenance",
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "none"
+      }
+    },
+    {
+      "id": "inactive_member",
+      "fixture": "shared",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You are Leah Brooks. You need maintenance at your home: 410 East 79th Street, apartment 6C, ZIP 10075. You are unsure whether the plan is active.",
+      "expected": {
+        "details": {
+          "service_type": "maintenance",
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "inactive"
+      }
+    },
+    {
+      "id": "expired_dispute",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You are Maya Chen. You need maintenance at 240 West 95th Street, no apartment/unit, ZIP 10025. You believe your plan is active and explicitly say so; if told expired, briefly dispute it then accept that it needs verification.",
+      "expected": {
+        "details": {
+          "service_type": "maintenance",
+          "membership_claim": true,
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "expired",
+        "disputed": true
+      }
+    },
+    {
+      "id": "unmatched_customer",
+      "fixture": "unknown",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You are Alex Taylor, calling for annual maintenance at your residence: 99 Example Street, no unit, ZIP 10023. You are unsure whether you have a plan. Supply your full name when asked.",
+      "expected": {
+        "details": {
+          "service_type": "maintenance",
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "unknown"
+      }
+    },
+    {
+      "id": "withheld_number",
+      "fixture": "withheld",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You need annual AC maintenance and are calling with withheld caller ID. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes.",
+      "expected": {
+        "details": {
+          "service_type": "maintenance",
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "active"
+      }
+    },
+    {
+      "id": "address_correction",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You need annual maintenance. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. Initially provide 125 West 72nd Street, apartment 4B, ZIP 10023 instead. When the assistant asks you to confirm that address, correct it to 152 West 72nd Street. Say yes only to the corrected complete address.",
+      "expected": {
+        "details": {
+          "service_address": "152 West 72nd Street",
+          "service_unit": "4B",
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "active"
+      }
+    },
+    {
+      "id": "unit_correction",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You need annual maintenance. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. Initially say apartment 5B. At address confirmation correct the unit to 4B; explicitly confirm only the corrected complete address.",
+      "expected": {
+        "details": {
+          "service_unit": "4B",
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "active"
+      }
+    },
+    {
+      "id": "commercial",
+      "fixture": "unknown",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. You are Alex Taylor. Start by saying this is AC repair for your commercial office, not a residence. Accept the explanation if the company only handles residences, then end.",
+      "expected": {
+        "details": {
+          "property_type": "commercial"
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "no_membership_check": true
+      }
+    },
+    {
+      "id": "priority_cooling",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Start with: My AC is running but is not cooling, and my elderly mother lives here. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes.",
+      "expected": {
+        "details": {
+          "cooling_unavailable": true,
+          "vulnerable_resident": true
+        },
+        "priority": "priority",
+        "priority_before_address": true
+      }
+    },
+    {
+      "id": "priority_heating",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Start with: My furnace will not heat and it is freezing cold inside the house. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes.",
+      "expected": {
+        "details": {
+          "heating_unavailable": true,
+          "cold_conditions_reported": true
+        },
+        "priority": "priority",
+        "priority_before_address": true
+      }
+    },
+    {
+      "id": "gas_emergency",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Start with: I can smell gas near my furnace. Do not volunteer an address or name. After safety guidance, briefly acknowledge and end without continuing intake.",
+      "expected": {
+        "details": {
+          "gas_smell_reported": true
+        },
+        "priority": "emergency",
+        "priority_before_address": true,
+        "safety_first": true,
+        "no_membership_check": true
+      }
+    },
+    {
+      "id": "routine_cooling",
+      "fixture": "maya",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Your AC is running but not cooling. Nobody in the home is elderly or medically vulnerable. Say this if asked. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes.",
+      "expected": {
+        "details": {
+          "cooling_unavailable": true,
+          "vulnerable_resident": false,
+          "address_confirmed": true
+        },
+        "priority": null,
+        "priority_before_address": false,
+        "membership": "active"
+      }
+    }
+  ],
+  "profiles": [
+    {
+      "id": "calm",
+      "voice": {
+        "provider": "vapi",
+        "voiceId": "Elliot",
+        "version": "2"
+      },
+      "behavior": "Be clear and cooperative. Give concise answers without rushing."
+    },
+    {
+      "id": "hesitant",
+      "voice": {
+        "provider": "vapi",
+        "voiceId": "Clara",
+        "version": "2",
+        "speed": 0.9
+      },
+      "behavior": "Use occasional natural hesitations and self-corrections. Keep the scenario facts unchanged. Do not create new emergencies."
+    },
+    {
+      "id": "impatient",
+      "voice": {
+        "provider": "vapi",
+        "voiceId": "Elliot",
+        "version": "2",
+        "speed": 1.1
+      },
+      "behavior": "Be busy and concise. Ask for shorter explanations if the agent repeats itself. Do not demand immediate booking unless the scenario calls for it."
+    },
+    {
+      "id": "noisy",
+      "voice": {
+        "provider": "vapi",
+        "voiceId": "Clara",
+        "version": "2"
+      },
+      "backgroundSound": "city",
+      "behavior": "Be cooperative while speaking from a noisy street. Keep answers clear and factual."
+    }
+  ],
+  "deferred_coverage": [
+    "real telephone routing and carrier degradation",
+    "appointment booking and race recovery (not implemented)",
+    "geographic coverage (not implemented)",
+    "true background lookup overlap (not implemented)",
+    "representative human accent and interruption review"
+  ]
+}
