@@ -15,6 +15,9 @@ class IntakeChanges(BaseModel):
     property_type: Literal["residential", "commercial", "unknown"] | None = None
     issue_summary: ShortText | None = None
     service_address: ShortText | None = None
+    service_unit: Annotated[str, Field(min_length=1, max_length=50, pattern=r"\S")] | None = None
+    service_zip: Annotated[str, Field(pattern=r"^[0-9]{5}$")] | None = None
+    membership_claim: RiskFact | None = None
     address_confirmed: bool | None = None
     service_type: Literal["repair", "maintenance", "other", "unknown"] | None = None
     heating_unavailable: RiskFact | None = None
@@ -29,7 +32,9 @@ class IntakeChanges(BaseModel):
             raise ValueError("Provide at least one changed field")
         if any(getattr(self, name) is None for name in self.model_fields_set):
             raise ValueError("Omit unchanged fields; null cannot clear a field")
-        if self.address_confirmed and "service_address" in self.model_fields_set:
+        if self.address_confirmed and self.model_fields_set & {
+            "service_address", "service_unit", "service_zip"
+        }:
             raise ValueError("Save an address first, then confirm it in a later update")
         return self
 
@@ -89,7 +94,7 @@ class SupabaseIntakeStore:
             details = state["details"]
             result["state"] = {key: state[key] for key in ("call_id", "revision", "details", "triage")}
             result["missing_fields"] = [
-                key for key in ("caller_name", "issue_summary", "service_address")
+                key for key in ("caller_name", "issue_summary", "service_address", "service_unit", "service_zip")
                 if not details.get(key)
             ]
             if details.get("property_type", "unknown") == "unknown":

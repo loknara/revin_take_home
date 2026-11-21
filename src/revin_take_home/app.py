@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, SecretStr, ValidationError, model_validat
 from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_context, normalize_number
 from .supabase_directory import SupabaseDirectory, supabase_client
 from .intake import IntakeStore, IntakeUnavailable, SupabaseIntakeStore, UpdateIntake
+from .membership import MembershipStore, MembershipUnavailable, ResolveMembership, SupabaseMembershipStore
 
 
 class Settings(BaseModel):
@@ -109,6 +110,7 @@ def create_app(
     settings: Settings | None = None,
     directory: CustomerDirectory | None = None,
     intake_store: IntakeStore | None = None,
+    membership_store: MembershipStore | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
     db_client = None
@@ -120,6 +122,8 @@ def create_app(
             directory = SupabaseDirectory(db_client)
         if intake_store is None:
             intake_store = SupabaseIntakeStore(db_client)
+        if membership_store is None:
+            membership_store = SupabaseMembershipStore(db_client)
     if directory is None:
         directory = UnconfiguredDirectory()
 
@@ -157,20 +161,26 @@ def create_app(
         message = body.message
         results = []
         for tool in message.toolCallList:
-            if tool.function.name != "update_intake":
+            if tool.function.name not in {"update_intake", "resolve_membership"}:
                 result = {"status": "unsupported_tool"}
             else:
                 try:
+                    schema = UpdateIntake if tool.function.name == "update_intake" else ResolveMembership
                     request = (
-                        UpdateIntake.model_validate_json(tool.function.arguments)
+                        schema.model_validate_json(tool.function.arguments)
                         if isinstance(tool.function.arguments, str)
-                        else UpdateIntake.model_validate(tool.function.arguments)
+                        else schema.model_validate(tool.function.arguments)
                     )
-                    if intake_store is None:
-                        raise IntakeUnavailable("Intake storage not configured")
-                    result = await intake_store.update(
-                        message.call.id, tool.id, message.originating_number(), request
-                    )
+                    if isinstance(request, ResolveMembership):
+                        if membership_store is None:
+                            raise MembershipUnavailable("Membership storage not configured")
+                        result = await membership_store.resolve(message.call.id, request)
+                    else:
+                        if intake_store is None:
+                            raise IntakeUnavailable("Intake storage not configured")
+                        result = await intake_store.update(
+                            message.call.id, tool.id, message.originating_number(), request
+                        )
                 except ValidationError as exc:
                     result = {
                         "status": "invalid_arguments",
@@ -183,6 +193,11 @@ def create_app(
                     result = {
                         "status": "save_unconfirmed",
                         "message": "Do not claim the intake was saved or a technician was requested.",
+                    }
+                except MembershipUnavailable:
+                    result = {
+                        "status": "lookup_unavailable", "membership_status": "unknown",
+                        "message": "Membership could not be verified. Do not say the caller is not a member or promise benefits.",
                     }
             results.append({"toolCallId": tool.id, "result": json.dumps(result)})
         return {"results": results}
