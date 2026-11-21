@@ -17,6 +17,16 @@ class IntakeChanges(BaseModel):
     service_address: ShortText | None = None
     service_unit: Annotated[str, Field(min_length=1, max_length=50, pattern=r"\S")] | None = None
     service_zip: Annotated[str, Field(pattern=r"^[0-9]{5}$")] | None = None
+    service_city: ShortText | None = None
+    service_state: Annotated[str, Field(pattern=r"^[A-Z]{2}$")] | None = None
+    service_category: Literal["hvac", "other", "unknown"] | None = None
+    callback_number: Annotated[str, Field(pattern=r"^\+[1-9][0-9]{7,14}$")] | None = None
+    callback_confirmed: bool | None = None
+    issue_duration: ShortText | None = None
+    equipment_notes: ShortText | None = None
+    access_notes: ShortText | None = None
+    onsite_contact: ShortText | None = None
+    preferred_date: Annotated[str, Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")] | None = None
     membership_claim: RiskFact | None = None
     address_confirmed: bool | None = None
     service_type: Literal["repair", "maintenance", "other", "unknown"] | None = None
@@ -33,9 +43,11 @@ class IntakeChanges(BaseModel):
         if any(getattr(self, name) is None for name in self.model_fields_set):
             raise ValueError("Omit unchanged fields; null cannot clear a field")
         if self.address_confirmed and self.model_fields_set & {
-            "service_address", "service_unit", "service_zip"
+            "service_address", "service_unit", "service_zip", "service_city", "service_state"
         }:
             raise ValueError("Save an address first, then confirm it in a later update")
+        if self.callback_confirmed and "callback_number" in self.model_fields_set:
+            raise ValueError("Save a callback first, then confirm it in a later update")
         return self
 
 
@@ -45,11 +57,14 @@ class UpdateIntake(BaseModel):
     caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
     changes: IntakeChanges
     confirmation_address: ShortText | None = None
+    confirmation_callback: ShortText | None = None
 
     @model_validator(mode="after")
     def check_confirmation(self) -> Self:
         if self.changes.address_confirmed is True and not self.confirmation_address:
             raise ValueError("Confirmation must identify the exact saved address")
+        if self.changes.callback_confirmed is True and not self.confirmation_callback:
+            raise ValueError("Confirmation must identify the exact saved callback")
         return self
 
 
@@ -80,6 +95,7 @@ class SupabaseIntakeStore:
                     "p_changes": request.changes.model_dump(exclude_unset=True),
                     "p_caller_quote": request.caller_quote,
                     "p_confirmation_address": request.confirmation_address,
+                    "p_confirmation_callback": request.confirmation_callback,
                 },
                 # Call-start enrichment stays at 1s; writes have a separate budget.
                 timeout=3.0,
@@ -93,19 +109,19 @@ class SupabaseIntakeStore:
             state = result["state"]
             details = state["details"]
             result["state"] = {key: state[key] for key in ("call_id", "revision", "details", "triage")}
-            result["missing_fields"] = [
-                key for key in ("caller_name", "issue_summary", "service_address", "service_unit", "service_zip")
+            result.setdefault("missing_fields", [
+                key for key in ("caller_name", "issue_summary", "service_address", "service_unit", "service_zip", "service_city", "service_state")
                 if not details.get(key)
-            ]
+            ])
             if details.get("property_type", "unknown") == "unknown":
                 result["missing_fields"].append("property_type")
             if not details.get("address_confirmed"):
                 result["missing_fields"].append("address_confirmation")
-            result["eligibility"] = (
+            result.setdefault("eligibility", (
                 "out_of_scope" if details.get("property_type") == "commercial"
                 else "not_evaluated"
-            )
-            result["booking_status"] = "not_booked"
+            ))
+            result.setdefault("booking_status", "not_booked")
             return result
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             raise IntakeUnavailable("Intake save could not be confirmed") from exc

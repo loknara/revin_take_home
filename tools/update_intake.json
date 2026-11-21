@@ -55,7 +55,7 @@
             },
             "address_confirmed": {
               "type": "boolean",
-              "description": "True only after caller explicitly confirms the saved street address, apartment/unit and ZIP together. Do not include any changed address/unit/ZIP in that update."
+              "description": "True only after a separate explicit confirmation of saved street, unit, city, state and ZIP. Do not change address components in this update."
             },
             "service_type": {
               "type": "string",
@@ -149,6 +149,62 @@
                 "unknown"
               ],
               "description": "Caller says they have an active maintenance plan (true), explicitly says they do not (false), or is unsure (unknown). This is a claim, not the database membership result. Omit if not discussed."
+            },
+            "service_city": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "Caller-supplied fact; do not invent. Optional notes must not delay urgent handling."
+            },
+            "issue_duration": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "Caller-supplied fact; do not invent. Optional notes must not delay urgent handling."
+            },
+            "equipment_notes": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "Caller-supplied fact; do not invent. Optional notes must not delay urgent handling."
+            },
+            "access_notes": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "Caller-supplied fact; do not invent. Optional notes must not delay urgent handling."
+            },
+            "onsite_contact": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "Caller-supplied fact; do not invent. Optional notes must not delay urgent handling."
+            },
+            "service_state": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            },
+            "service_category": {
+              "type": "string",
+              "enum": [
+                "hvac",
+                "other",
+                "unknown"
+              ]
+            },
+            "callback_number": {
+              "type": "string",
+              "pattern": "^\\+[1-9][0-9]{7,14}$",
+              "description": "Caller-provided callback in E.164. Separate from caller ID and account phone. Ask rather than guess."
+            },
+            "callback_confirmed": {
+              "type": "boolean",
+              "description": "True only for a separate explicit confirmation of the already saved callback; never with a changed callback."
+            },
+            "preferred_date": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "description": "Requested date in America/New_York; ask to clarify ambiguous dates."
             }
           },
           "description": "Only changed facts. Omit unchanged or undiscussed fields; use unknown for explicitly uncertain risk facts. Do not send nulls."
@@ -158,6 +214,10 @@
           "minLength": 1,
           "maxLength": 500,
           "description": "Required when address_confirmed is true. Copy the exact service_address from the current saved state."
+        },
+        "confirmation_callback": {
+          "type": "string",
+          "description": "Exact saved callback when callback_confirmed=true."
         }
       }
     }
