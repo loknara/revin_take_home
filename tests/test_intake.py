@@ -96,6 +96,7 @@ def test_saved_commercial_intake_is_not_booking_eligibility():
             return httpx.Response(200, json={"status": "saved", "state": {
                 "call_id": "call", "revision": 1, "originating_number": "+12125550101",
                 "details": {"property_type": "commercial", "address_confirmed": False},
+                "triage": {"level": "needs_assessment"},
             }})
         async with httpx.AsyncClient(base_url="https://test.supabase.co/rest/v1/",
                                      transport=httpx.MockTransport(handler)) as http:
@@ -107,3 +108,19 @@ def test_saved_commercial_intake_is_not_booking_eligibility():
             assert "address_confirmation" in result["missing_fields"]
             assert "originating_number" not in result["state"]
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("value", [True, False, "unknown"])
+def test_risk_fields_preserve_true_false_and_unknown(value):
+    result = UpdateIntake.model_validate(request(changes={"vulnerable_resident": value}))
+    assert result.changes.vulnerable_resident is value or result.changes.vulnerable_resident == value
+
+
+@pytest.mark.parametrize("changes", [
+    {"gas_smell_reported": "false"}, {"gas_smell_reported": 1},
+    {"gas_smell_reported": None}, {"triage": "routine"},
+    {"service_type": "emergency"}, {"notification_status": "notified"},
+])
+def test_model_cannot_supply_decisions_or_ambiguous_risk_flags(changes):
+    with pytest.raises(ValidationError):
+        UpdateIntake.model_validate(request(changes=changes))

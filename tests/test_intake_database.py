@@ -81,3 +81,60 @@ def test_late_retry_returns_current_state_without_reverting_it(database):
     assert replay["replayed"] is True
     assert replay["state"]["revision"] == 2
     assert replay["state"]["details"]["service_address"] == "152 West 72nd"
+
+
+@pytest.mark.parametrize("facts,level,reason", [
+    ({"service_type": "maintenance"}, "routine", None),
+    ({"gas_smell_reported": True}, "emergency", "gas_smell"),
+    ({"service_type": "maintenance", "gas_smell_reported": True}, "emergency", "gas_smell"),
+    ({"heating_unavailable": True, "cold_conditions_reported": True}, "priority", "no_heat_cold"),
+    ({"heating_unavailable": True}, "needs_assessment", None),
+    ({"heating_unavailable": True, "cold_conditions_reported": False}, "routine", None),
+    ({"cooling_unavailable": True, "vulnerable_resident": True}, "priority", "no_cooling_vulnerable"),
+    ({"cooling_unavailable": True}, "needs_assessment", None),
+    ({"cooling_unavailable": True, "vulnerable_resident": "unknown"}, "needs_assessment", None),
+    ({"cooling_unavailable": True, "vulnerable_resident": False}, "routine", None),
+    ({"service_type": "maintenance", "vulnerable_resident": True}, "routine", None),
+])
+def test_triage_uses_reported_facts_and_unknown_is_not_false(database, facts, level, reason):
+    result = database("risk", 0, facts)
+    assert result["status"] == "saved"
+    assert result["state"]["triage"]["level"] == level
+    if reason:
+        assert reason in result["state"]["triage"]["reasons"]
+        assert result["priority_request"]["status"] == "recorded"
+        assert result["priority_request"]["notification_status"] == "not_connected"
+        # No name, address, membership or eligibility was needed to save the case.
+        assert "service_address" not in result["state"]["details"]
+    else:
+        assert result["priority_request"] is None
+
+
+def test_priority_is_idempotent_and_escalates_without_new_case(database):
+    facts = {"cooling_unavailable": True, "vulnerable_resident": True}
+    first = database("risk", 0, facts)
+    replay = database("risk", 0, facts)
+    assert replay["priority_request"]["id"] == first["priority_request"]["id"]
+    emergency = database("gas", 1, {"gas_smell_reported": True})
+    assert emergency["priority_request"]["id"] == first["priority_request"]["id"]
+    assert emergency["priority_request"]["highest_level"] == "emergency"
+
+
+def test_risk_correction_retains_case_for_human_review(database):
+    first = database("risk", 0, {"cooling_unavailable": True, "vulnerable_resident": True})
+    corrected = database("correction", 1, {"vulnerable_resident": False})
+    assert corrected["state"]["triage"]["level"] == "routine"
+    case = corrected["priority_request"]
+    assert case["id"] == first["priority_request"]["id"]
+    assert case["highest_level"] == "priority"
+    assert case["current_level"] == "routine"
+    assert case["needs_review"] is True
+    assert case["status"] == "recorded"
+
+
+def test_reverting_a_risk_to_unknown_does_not_silently_remove_priority(database):
+    database("risk", 0, {"heating_unavailable": True, "cold_conditions_reported": True})
+    result = database("uncertain", 1, {"cold_conditions_reported": "unknown"})
+    assert result["state"]["triage"]["level"] == "needs_assessment"
+    assert result["priority_request"]["needs_review"] is True
+    assert result["priority_request"]["highest_level"] == "priority"

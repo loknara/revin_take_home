@@ -1,4 +1,4 @@
-"""Vapi call-start adapter. Customer lookup only; no audio or saved call intake.
+"""Vapi webhook adapter for caller lookup and persistent intake. Audio stays in Vapi.
 
 Run: uv run --env-file .env uvicorn revin_take_home.app:create_app --factory
 Contract: https://docs.vapi.ai/api-reference/webhooks/server-message
@@ -131,7 +131,7 @@ def create_app(
             if db_client is not None:
                 await db_client.aclose()
 
-    app = FastAPI(title="Summit Air demo — caller lookup", lifespan=lifespan)
+    app = FastAPI(title="Summit Air demo — caller lookup and intake", lifespan=lifespan)
     bearer = HTTPBearer(auto_error=False)
 
     async def authenticate(

@@ -6,6 +6,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ShortText = Annotated[str, Field(min_length=1, max_length=500, pattern=r"\S")]
+RiskFact = bool | Literal["unknown"]
 
 
 class IntakeChanges(BaseModel):
@@ -15,6 +16,12 @@ class IntakeChanges(BaseModel):
     issue_summary: ShortText | None = None
     service_address: ShortText | None = None
     address_confirmed: bool | None = None
+    service_type: Literal["repair", "maintenance", "other", "unknown"] | None = None
+    heating_unavailable: RiskFact | None = None
+    cooling_unavailable: RiskFact | None = None
+    cold_conditions_reported: RiskFact | None = None
+    vulnerable_resident: RiskFact | None = None
+    gas_smell_reported: RiskFact | None = None
 
     @model_validator(mode="after")
     def check_patch(self) -> Self:
@@ -80,7 +87,7 @@ class SupabaseIntakeStore:
                 raise ValueError("Unexpected intake result")
             state = result["state"]
             details = state["details"]
-            result["state"] = {key: state[key] for key in ("call_id", "revision", "details")}
+            result["state"] = {key: state[key] for key in ("call_id", "revision", "details", "triage")}
             result["missing_fields"] = [
                 key for key in ("caller_name", "issue_summary", "service_address")
                 if not details.get(key)
