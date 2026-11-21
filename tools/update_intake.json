@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "update_intake",
-    "description": "Save newly stated or corrected intake facts for the current call. This does not book service, verify identity or membership, or alert dispatch. Use the latest returned revision. Call sequentially, never in parallel. The server supplies call identity.",
+    "description": "Save newly stated or corrected facts for this call. Backend rules assess urgency and atomically record priority cases when indicated. Does not book, notify dispatch, verify identity or membership. Save risk facts immediately, without waiting for other intake fields. Give gas-emergency guidance before any tool. Use the latest revision; never call in parallel.",
     "parameters": {
       "type": "object",
       "additionalProperties": false,
@@ -55,9 +55,79 @@
             "address_confirmed": {
               "type": "boolean",
               "description": "True only after the caller explicitly confirms the previously saved address. Never include service_address in the same update."
+            },
+            "service_type": {
+              "type": "string",
+              "enum": [
+                "repair",
+                "maintenance",
+                "other",
+                "unknown"
+              ],
+              "description": "Classify the requested service; maintenance can still reveal an urgent risk."
+            },
+            "heating_unavailable": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ],
+              "description": "Caller reports loss of heat. Use unknown if explicitly uncertain; omit if not discussed."
+            },
+            "cooling_unavailable": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ],
+              "description": "Caller reports AC not producing cooling, including not turning on. Use unknown if explicitly uncertain; omit if not discussed."
+            },
+            "cold_conditions_reported": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ],
+              "description": "Caller reports cold or winter conditions relevant to the loss of heat. Do not infer weather solely from the date. Use unknown if explicitly uncertain; omit if not discussed."
+            },
+            "vulnerable_resident": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ],
+              "description": "Caller reports an elderly resident or a health vulnerability to loss of cooling. Do not collect diagnosis details. Use unknown if explicitly uncertain; omit if not discussed."
+            },
+            "gas_smell_reported": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ],
+              "description": "True for any current suspected gas smell/leak reported by the caller, including faint or uncertain suspected smells. False only for an explicit denial/correction; unknown only when no suspected incident is established. Do not mark true for a hypothetical question or a mention of gas equipment. Give immediate safety guidance before saving."
             }
           },
-          "description": "Only changed fields. Omit unknown/unchanged values; do not send nulls."
+          "description": "Only changed facts. Omit unchanged or undiscussed fields; use unknown for explicitly uncertain risk facts. Do not send nulls."
         },
         "confirmation_address": {
           "type": "string",
