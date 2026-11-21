@@ -13,10 +13,11 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field, SecretStr, model_validator
+from pydantic import BaseModel, Field, SecretStr, ValidationError, model_validator
 
 from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_context, normalize_number
 from .supabase_directory import SupabaseDirectory, supabase_client
+from .intake import IntakeStore, IntakeUnavailable, SupabaseIntakeStore, UpdateIntake
 
 
 class Settings(BaseModel):
@@ -54,8 +55,7 @@ class Call(BaseModel):
     customer: Customer | None = None
 
 
-class AssistantRequest(BaseModel):
-    type: Literal["assistant-request"]
+class CallMessage(BaseModel):
     call: Call
     customer: Customer | None = None
 
@@ -73,8 +73,31 @@ class AssistantRequest(BaseModel):
         return normalized.pop() if len(normalized) == 1 else None
 
 
+class AssistantRequest(CallMessage):
+    type: Literal["assistant-request"]
+
+
 class Envelope(BaseModel):
     message: AssistantRequest
+
+
+class ToolFunction(BaseModel):
+    name: str
+    arguments: dict | str
+
+
+class ToolCall(BaseModel):
+    id: str = Field(min_length=1, max_length=200)
+    function: ToolFunction
+
+
+class ToolMessage(CallMessage):
+    type: Literal["tool-calls"]
+    toolCallList: list[ToolCall] = Field(min_length=1, max_length=5)
+
+
+class ToolEnvelope(BaseModel):
+    message: ToolMessage
 
 
 class UnconfiguredDirectory:
@@ -85,14 +108,18 @@ class UnconfiguredDirectory:
 def create_app(
     settings: Settings | None = None,
     directory: CustomerDirectory | None = None,
+    intake_store: IntakeStore | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
     db_client = None
-    if directory is None and settings.supabase_url and settings.supabase_secret_key:
+    if settings.supabase_url and settings.supabase_secret_key:
         db_client = supabase_client(
             settings.supabase_url, settings.supabase_secret_key.get_secret_value()
         )
-        directory = SupabaseDirectory(db_client)
+        if directory is None:
+            directory = SupabaseDirectory(db_client)
+        if intake_store is None:
+            intake_store = SupabaseIntakeStore(db_client)
     if directory is None:
         directory = UnconfiguredDirectory()
 
@@ -124,6 +151,41 @@ def create_app(
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    @app.post("/vapi/tools", dependencies=[Depends(authenticate)])
+    async def tool_calls(body: ToolEnvelope) -> dict:
+        message = body.message
+        results = []
+        for tool in message.toolCallList:
+            if tool.function.name != "update_intake":
+                result = {"status": "unsupported_tool"}
+            else:
+                try:
+                    request = (
+                        UpdateIntake.model_validate_json(tool.function.arguments)
+                        if isinstance(tool.function.arguments, str)
+                        else UpdateIntake.model_validate(tool.function.arguments)
+                    )
+                    if intake_store is None:
+                        raise IntakeUnavailable("Intake storage not configured")
+                    result = await intake_store.update(
+                        message.call.id, tool.id, message.originating_number(), request
+                    )
+                except ValidationError as exc:
+                    result = {
+                        "status": "invalid_arguments",
+                        "errors": [
+                            {"field": list(e["loc"]), "message": e["msg"]}
+                            for e in exc.errors(include_input=False, include_url=False)
+                        ],
+                    }
+                except IntakeUnavailable:
+                    result = {
+                        "status": "save_unconfirmed",
+                        "message": "Do not claim the intake was saved or a technician was requested.",
+                    }
+            results.append({"toolCallId": tool.id, "result": json.dumps(result)})
+        return {"results": results}
 
     @app.post("/vapi/assistant-request", dependencies=[Depends(authenticate)])
     async def assistant_request(body: Envelope) -> dict:
