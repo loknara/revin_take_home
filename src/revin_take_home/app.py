@@ -19,6 +19,7 @@ from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_cont
 from .supabase_directory import SupabaseDirectory, supabase_client
 from .intake import IntakeStore, IntakeUnavailable, SupabaseIntakeStore, UpdateIntake
 from .membership import MembershipStore, MembershipUnavailable, ResolveMembership, SupabaseMembershipStore
+from .evaluation_api import NewEvaluationSession, EvaluationUnavailable, SupabaseEvaluationStore
 
 
 class Settings(BaseModel):
@@ -101,6 +102,15 @@ class ToolEnvelope(BaseModel):
     message: ToolMessage
 
 
+class EvaluationToolMessage(BaseModel):
+    type: Literal["tool-calls"]
+    toolCallList: list[ToolCall] = Field(min_length=1, max_length=5)
+
+
+class EvaluationToolEnvelope(BaseModel):
+    message: EvaluationToolMessage
+
+
 class UnconfiguredDirectory:
     async def find_by_phone(self, number: str):
         raise LookupUnavailable("Customer directory not configured")
@@ -111,6 +121,7 @@ def create_app(
     directory: CustomerDirectory | None = None,
     intake_store: IntakeStore | None = None,
     membership_store: MembershipStore | None = None,
+    evaluation_store: SupabaseEvaluationStore | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
     db_client = None
@@ -124,6 +135,8 @@ def create_app(
             intake_store = SupabaseIntakeStore(db_client)
         if membership_store is None:
             membership_store = SupabaseMembershipStore(db_client)
+        if evaluation_store is None:
+            evaluation_store = SupabaseEvaluationStore(db_client)
     if directory is None:
         directory = UnconfiguredDirectory()
 
@@ -219,5 +232,61 @@ def create_app(
                 },
             },
         }
+
+    async def evaluation_session(session_id: UUID, *, require_open=False):
+        if evaluation_store is None:
+            raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
+        try:
+            session = await evaluation_store.get(session_id)
+        except EvaluationUnavailable:
+            raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
+        if session is None:
+            raise HTTPException(status_code=404, detail="Unknown evaluation session")
+        if require_open and not session.is_open():
+            raise HTTPException(status_code=410, detail="Evaluation session closed or expired")
+        if session.call_id != "eval_" + str(session.id):
+            raise HTTPException(status_code=503, detail="Invalid evaluation scope")
+        return session
+
+    @app.post("/evaluation/sessions", dependencies=[Depends(authenticate)])
+    async def create_evaluation(body: NewEvaluationSession):
+        if evaluation_store is None:
+            raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
+        try:
+            session = await evaluation_store.create(body.fixture_key)
+        except EvaluationUnavailable:
+            raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
+        context = await bootstrap_context(session.call_id, session.originating_number, directory)
+        return {"session_id": str(session.id), "call_id": session.call_id,
+                "expires_at": session.expires_at, "caller_context": context.for_agent()}
+
+    @app.post("/evaluation/sessions/{session_id}/tools", dependencies=[Depends(authenticate)])
+    async def evaluation_tools(session_id: UUID, body: EvaluationToolEnvelope):
+        session = await evaluation_session(session_id, require_open=True)
+        # Simulator chat/voice metadata is NOT inbound caller identity. Bind the
+        # test to a server-created fixture; never relax the production endpoint.
+        return await tool_calls(ToolEnvelope(message=ToolMessage(
+            type="tool-calls", call=Call(id=session.call_id, type="inboundPhoneCall"),
+            customer=Customer(number=session.originating_number),
+            toolCallList=body.message.toolCallList,
+        )))
+
+    @app.get("/evaluation/sessions/{session_id}", dependencies=[Depends(authenticate)])
+    async def get_evaluation(session_id: UUID):
+        session = await evaluation_session(session_id)
+        try:
+            return {"session_id": str(session.id), "call_id": session.call_id,
+                    "evidence": await evaluation_store.evidence(session)}
+        except EvaluationUnavailable:
+            raise HTTPException(status_code=503, detail="Evaluation evidence unavailable")
+
+    @app.post("/evaluation/sessions/{session_id}/close", dependencies=[Depends(authenticate)])
+    async def close_evaluation(session_id: UUID):
+        await evaluation_session(session_id)
+        try:
+            await evaluation_store.close(session_id)
+        except EvaluationUnavailable:
+            raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
+        return {"status": "closed"}
 
     return app
