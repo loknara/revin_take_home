@@ -50,11 +50,12 @@
             "service_address": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 500
+              "maxLength": 500,
+              "description": "Street number and street name only. Save apartment/unit and ZIP separately. Do not guess or silently change the address."
             },
             "address_confirmed": {
               "type": "boolean",
-              "description": "True only after the caller explicitly confirms the previously saved address. Never include service_address in the same update."
+              "description": "True only after caller explicitly confirms the saved street address, apartment/unit and ZIP together. Do not include any changed address/unit/ZIP in that update."
             },
             "service_type": {
               "type": "string",
@@ -125,6 +126,29 @@
                 "unknown"
               ],
               "description": "True for any current suspected gas smell/leak reported by the caller, including faint or uncertain suspected smells. False only for an explicit denial/correction; unknown only when no suspected incident is established. Do not mark true for a hypothetical question or a mention of gas equipment. Give immediate safety guidance before saving."
+            },
+            "service_unit": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "description": "Caller-supplied apartment/unit. Save none only if the caller explicitly says there is no unit; do not infer it from silence."
+            },
+            "service_zip": {
+              "type": "string",
+              "pattern": "^[0-9]{5}$",
+              "description": "Five-digit ZIP supplied by the caller; never infer from caller ID or a candidate account."
+            },
+            "membership_claim": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ],
+              "description": "Caller says they have an active maintenance plan (true), explicitly says they do not (false), or is unsure (unknown). This is a claim, not the database membership result. Omit if not discussed."
             }
           },
           "description": "Only changed facts. Omit unchanged or undiscussed fields; use unknown for explicitly uncertain risk facts. Do not send nulls."
