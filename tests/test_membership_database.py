@@ -16,6 +16,7 @@ def directory():
     with psycopg.connect(Path('supabase/.temp/pooler-url').read_text().strip(),
                           password=os.environ['SUPABASE_DB_PASSWORD'], sslmode='require',
                           connect_timeout=15, autocommit=True) as db:
+        db.execute("set time zone 'America/New_York'")
         customer_id, location_id, call_id = prefix+'_customer', prefix+'_location', prefix+'_call'
         ids = [customer_id]
         db.execute('insert into public.customers(id,first_name,full_name) values(%s,%s,%s)',
