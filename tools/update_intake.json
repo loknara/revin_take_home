@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "update_intake",
-    "description": "Save newly stated or corrected facts for this call. Backend rules assess urgency and atomically record priority cases when indicated. Does not book, notify dispatch, verify identity or membership. Save risk facts immediately, without waiting for other intake fields. Give gas-emergency guidance before any tool. Use the latest revision; never call in parallel.",
+    "description": "Required after a caller provides or corrects intake facts, BEFORE the next question. Save initial job and confirmed caller name immediately, not only address details. Backend automatically queues membership after a complete eligible address and name are confirmed. Saves risk immediately. One tool at a time using the latest revision. Gas safety guidance must precede this tool. Does not book or notify.",
     "parameters": {
       "type": "object",
       "additionalProperties": false,

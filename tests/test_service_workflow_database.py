@@ -157,6 +157,7 @@ def test_booking_requires_offer_then_agreement_and_is_idempotent(booking):
     result=booking.confirm(call,p)
     assert result['status']=='booked' and result['dispatch_status']=='demo_only'
     assert result['timezone']=='America/New_York'
+    assert 'membership' in result
     retry=booking.confirm(call,p)
     assert retry['reference']==result['reference']
     assert w.rpc('get_booking_status',call)['reference']==result['reference']

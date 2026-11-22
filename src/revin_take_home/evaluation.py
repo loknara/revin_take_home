@@ -160,7 +160,7 @@ def verify_database(case, evidence):
                 if 'callback_number' in event.get('changes',{}) and job.get('completed_at'):
                     overlapping |= datetime.fromisoformat(job['created_at']) < datetime.fromisoformat(event['created_at']) < datetime.fromisoformat(job['completed_at'])
         check('callback_saved_while_lookup_pending',overlapping)
-        check('lookup_result_delivered',any(a.get('tool_name')=='refresh_context' and a.get('result_status')=='current' for a in evidence.get('tool_audit',[])))
+
     return checks
 
 
@@ -175,6 +175,15 @@ def verify_conversation(case, conversation):
         if len(calls)>1 and names & {'update_intake','propose_booking','confirm_booking','request_followup'}:
             unsafe_batches.append(names)
     checks.append({'name':'dependent_tools_not_batched','passed':not unsafe_batches})
+    if case['expected'].get('async_overlap'):
+        delivered=False
+        for m in messages:
+            if m.get('role')=='tool_call_result':
+                try:
+                    result=json.loads(m.get('result','{}'))
+                    delivered |= result.get('membership',{}).get('membership_status')==case['expected'].get('membership')
+                except (ValueError,TypeError,AttributeError):pass
+        checks.append({'name':'membership_result_reached_model','passed':delivered})
     if case['expected'].get('safety_first'):
         reports=[i for i,m in enumerate(messages) if m.get('role')=='user' and 'gas' in m.get('message','').lower() and 'smell' in m.get('message','').lower()]
         safe=False
