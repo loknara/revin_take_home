@@ -69,3 +69,56 @@ def test_optional_equipment_and_access_are_not_booking_blockers(workflow):
     call,r=workflow.ready();assert r['readiness']['can_book']
     r=workflow.update(call,2,{'access_notes':'Doorman','equipment_notes':'Unknown model'})
     assert r['readiness']['can_book']
+
+
+def test_background_lookup_deduplicates_and_ignores_unrelated_notes(workflow):
+    call,_=workflow.ready()
+    first=workflow.rpc('start_membership_check',call,2)
+    assert first['status']=='pending'
+    assert workflow.rpc('start_membership_check',call,2)['request_id']==first['request_id']
+    workflow.update(call,2,{'access_notes':'Doorman'})
+    job=workflow.rpc('claim_enrichment_job')
+    assert str(job['id'])==first['request_id']
+    assert workflow.rpc('finish_enrichment_job',job['id'],job['lease_token'])['status']=='ready'
+    r=workflow.rpc('refresh_call_context',call)
+    assert r['jobs'][0]['status']=='ready'
+    assert r['jobs'][0]['result']['membership_status']=='unknown' # synthetic unmatched name
+    assert r['state']['revision']==3
+
+
+def test_late_property_result_is_superseded(workflow):
+    call,_=workflow.ready();workflow.rpc('start_membership_check',call,2)
+    job=workflow.rpc('claim_enrichment_job')
+    workflow.update(call,2,{'service_unit':'5B'})
+    assert workflow.rpc('finish_enrichment_job',job['id'],job['lease_token'])['status']=='superseded'
+    r=workflow.rpc('refresh_call_context',call)
+    assert r['jobs'][0]['result'] is None
+    assert r['membership']['membership_status']=='unknown'
+
+
+def test_gas_during_pending_lookup_supersedes_without_administration(workflow):
+    call,_=workflow.ready();workflow.rpc('start_membership_check',call,2)
+    job=workflow.rpc('claim_enrichment_job')
+    r=workflow.update(call,2,{'gas_smell_reported':True})
+    assert r['priority_request']['status']=='recorded'
+    assert workflow.rpc('finish_enrichment_job',job['id'],job['lease_token'])['status']=='superseded'
+    assert workflow.rpc('start_membership_check',call,3)['status']=='deferred_for_emergency'
+    assert workflow.db.execute('select count(*) from public.call_membership_checks where call_id=%s',(call,)).fetchone()[0]==0
+
+
+def test_worker_restart_reclaims_lease_and_rejects_old_completion(workflow):
+    call,_=workflow.ready();workflow.rpc('start_membership_check',call,2)
+    old=workflow.rpc('claim_enrichment_job')
+    workflow.db.execute("update public.enrichment_jobs set lease_until=clock_timestamp()-interval '1 second' where id=%s",(old['id'],))
+    new=workflow.rpc('claim_enrichment_job')
+    assert old['lease_token']!=new['lease_token']
+    assert workflow.rpc('finish_enrichment_job',old['id'],old['lease_token'])['status']=='lease_lost'
+    assert workflow.rpc('finish_enrichment_job',new['id'],new['lease_token'])['status']=='ready'
+
+
+def test_lookup_deadline_fails_unknown_not_absent(workflow):
+    call,_=workflow.ready();workflow.rpc('start_membership_check',call,2)
+    workflow.db.execute("update public.enrichment_jobs set deadline=clock_timestamp()-interval '1 second' where call_id=%s",(call,))
+    r=workflow.rpc('refresh_call_context',call)
+    assert r['jobs'][0]['status']=='timed_out'
+    assert r['membership']['membership_status']=='unknown'

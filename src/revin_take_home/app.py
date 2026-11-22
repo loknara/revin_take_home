@@ -4,6 +4,8 @@ Run: uv run --env-file .env uvicorn revin_take_home.app:create_app --factory
 Contract: https://docs.vapi.ai/api-reference/webhooks/server-message
 """
 
+import asyncio
+from contextlib import suppress
 import json
 import os
 import secrets
@@ -15,6 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, SecretStr, ValidationError, model_validator
 
+from .workflow import WorkflowStore, WorkflowUnavailable, WORKFLOW_SCHEMAS
 from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_context, normalize_number
 from .supabase_directory import SupabaseDirectory, supabase_client
 from .intake import IntakeStore, IntakeUnavailable, SupabaseIntakeStore, UpdateIntake
@@ -122,6 +125,7 @@ def create_app(
     intake_store: IntakeStore | None = None,
     membership_store: MembershipStore | None = None,
     evaluation_store: SupabaseEvaluationStore | None = None,
+    workflow_store: WorkflowStore | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
     db_client = None
@@ -129,6 +133,8 @@ def create_app(
         db_client = supabase_client(
             settings.supabase_url, settings.supabase_secret_key.get_secret_value()
         )
+        if workflow_store is None:
+            workflow_store = WorkflowStore(db_client)
         if directory is None:
             directory = SupabaseDirectory(db_client)
         if intake_store is None:
@@ -142,9 +148,14 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        worker = asyncio.create_task(workflow_store.worker()) if workflow_store else None
         try:
             yield
         finally:
+            if worker:
+                worker.cancel()
+                with suppress(asyncio.CancelledError):
+                    await worker
             if db_client is not None:
                 await db_client.aclose()
 
@@ -174,17 +185,21 @@ def create_app(
         message = body.message
         results = []
         for tool in message.toolCallList:
-            if tool.function.name not in {"update_intake", "resolve_membership"}:
+            if tool.function.name not in {"update_intake", "resolve_membership", *WORKFLOW_SCHEMAS}:
                 result = {"status": "unsupported_tool"}
             else:
                 try:
-                    schema = UpdateIntake if tool.function.name == "update_intake" else ResolveMembership
+                    schema = {"update_intake": UpdateIntake, "resolve_membership": ResolveMembership, **WORKFLOW_SCHEMAS}[tool.function.name]
                     request = (
                         schema.model_validate_json(tool.function.arguments)
                         if isinstance(tool.function.arguments, str)
                         else schema.model_validate(tool.function.arguments)
                     )
-                    if isinstance(request, ResolveMembership):
+                    if tool.function.name in WORKFLOW_SCHEMAS:
+                        if workflow_store is None:
+                            raise WorkflowUnavailable
+                        result = await workflow_store.execute(tool.function.name, message.call.id, tool.id, request)
+                    elif isinstance(request, ResolveMembership):
                         if membership_store is None:
                             raise MembershipUnavailable("Membership storage not configured")
                         result = await membership_store.resolve(message.call.id, request)
@@ -202,6 +217,8 @@ def create_app(
                             for e in exc.errors(include_input=False, include_url=False)
                         ],
                     }
+                except WorkflowUnavailable:
+                    result = {"status": "outcome_unconfirmed", "message": "Do not claim success. Reconcile booking status before retrying writes; unknown reads are not negative results."}
                 except IntakeUnavailable:
                     result = {
                         "status": "save_unconfirmed",

@@ -1,0 +1,15 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "refresh_context",
+    "description": "Read current saved intake, readiness, membership and background lookup status. Use after independent intake while lookup runs, after corrections/conflicts, or once before booking. Pending is not a result. No fabricated waiting questions.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "required": []
+    }
+  },
+  "messages": []
+}
