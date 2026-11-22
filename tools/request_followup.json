@@ -41,5 +41,11 @@
       "type": "object"
     }
   },
-  "messages": []
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "",
+      "blocking": false
+    }
+  ]
 }

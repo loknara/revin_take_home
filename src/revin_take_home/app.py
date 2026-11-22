@@ -254,6 +254,8 @@ def create_app(
                         "status": "lookup_unavailable", "membership_status": "unknown",
                         "message": "Membership could not be verified. Do not say the caller is not a member or promise benefits.",
                     }
+            if workflow_store is not None and result.get("membership_lookup"):
+                workflow_store.wake.set()
             if audit_store is not None:
                 await audit_store.tool(message.call.id, tool.id, tool.function.name,
                     result.get('status','unknown'), round((time.monotonic()-started)*1000))

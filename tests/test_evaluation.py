@@ -104,3 +104,14 @@ def test_runner_requires_judge_and_database_and_collects_evidence(monkeypatch,tm
     assert result['status']=='passed' and all(c['passed'] for c in result['checks'])
     assert requests[-1]==('POST',f'/evaluation/sessions/{sid}/close')
     assert (tmp_path/'last-run.json').exists() and not (tmp_path/'active-run.json').exists()
+
+
+def test_conversation_checks_catch_unsafe_batch_and_gas_delay():
+    from revin_take_home.evaluation import verify_conversation
+    case={'expected':{'safety_first':True}}
+    messages=[{'role':'user','message':'I smell gas'},
+        {'role':'tool_calls','toolCalls':[{'function':{'name':'update_intake'}},{'function':{'name':'start_membership_check'}}]},
+        {'role':'bot','message':'Leave and call 911'}]
+    assert all(not c['passed'] for c in verify_conversation(case,{'messages':messages}))
+    messages[1],messages[2]=messages[2],messages[1]
+    assert next(c for c in verify_conversation(case,{'messages':messages}) if c['name']=='gas_guidance_precedes_first_tool')['passed']

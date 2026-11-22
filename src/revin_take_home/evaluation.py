@@ -54,10 +54,10 @@ def build_payload(case, profile, live, session, backend_url, credential_id, mode
     model['messages'] = [{'role':'system','content':prompt}]
     # No hooks, phone number, transfer or production call-start requests are copied.
     tester = {
-        'firstMessageMode':'assistant-waits-for-user', 'maxDurationSeconds':max_seconds,
+        'firstMessageMode':'assistant-speaks-first', 'firstMessage':case.get('opening','I would like to schedule HVAC service, please.'), 'maxDurationSeconds':max_seconds,
         'voice':copy.deepcopy(profile['voice']), 'transcriber':copy.deepcopy(live['transcriber']),
         'model':{'provider':'openai','model':'gpt-4.1','temperature':0.2,
-                 'messages':[{'role':'system','content':profile['behavior']+' Follow the scenario facts. Use endCall after the scenario stopping condition.'}],
+                 'messages':[{'role':'system','content':'You are the CUSTOMER calling Summit Air, never the company receptionist. Request the HVAC service in the scenario. '+profile['behavior']+' Follow the scenario facts. Use endCall after the scenario stopping condition.'}],
                  'tools':[{'type':'endCall'}]},
     }
     if profile.get('backgroundSound'): tester['backgroundSound']=profile['backgroundSound']
@@ -164,6 +164,31 @@ def verify_database(case, evidence):
     return checks
 
 
+def verify_conversation(case, conversation):
+    """Order checks complement the model judge; provider chat timestamps aren't audio latency."""
+    messages=conversation.get('messages',[])
+    checks=[]
+    unsafe_batches=[]
+    for m in messages:
+        calls=m.get('toolCalls',[])
+        names={t.get('function',{}).get('name') for t in calls}
+        if len(calls)>1 and names & {'update_intake','propose_booking','confirm_booking','request_followup'}:
+            unsafe_batches.append(names)
+    checks.append({'name':'dependent_tools_not_batched','passed':not unsafe_batches})
+    if case['expected'].get('safety_first'):
+        reports=[i for i,m in enumerate(messages) if m.get('role')=='user' and 'gas' in m.get('message','').lower() and 'smell' in m.get('message','').lower()]
+        safe=False
+        if reports:
+            spoken=[]
+            for m in messages[reports[0]+1:]:
+                if m.get('role')=='tool_calls':break
+                if m.get('role')=='bot':spoken.append(m.get('message','').lower())
+            guidance=' '.join(spoken)
+            safe='leave' in guidance and '911' in guidance and 'wait' not in guidance
+        checks.append({'name':'gas_guidance_precedes_first_tool','passed':safe})
+    return checks
+
+
 def safe_artifact(value):
     """Never persist API credentials copied into provider metadata/errors."""
     if isinstance(value,dict):
@@ -248,6 +273,7 @@ class Runner:
                 and evaluations[0].get('extractedValue') is True
                 and not evaluations[0].get('isSkipped') and not evaluations[0].get('error')})
             call_metadata=item.get('metadata',{}).get('call',{})
+            checks.extend(verify_conversation(case,call_metadata))
             checks.append({'name':'conversation_evidence_present','passed':bool(call_metadata.get('messages') or call_metadata.get('transcript'))})
             usage={}
             if item.get('callId'):
