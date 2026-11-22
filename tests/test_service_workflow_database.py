@@ -17,9 +17,10 @@ def workflow():
         return psycopg.connect(url, password=os.environ['SUPABASE_DB_PASSWORD'], sslmode='require', connect_timeout=15, autocommit=True)
     db = connect()
     calls = []
+    scope = "test_workflow_"+uuid4().hex
     class Workflow:
         def new(self):
-            call = 'test_workflow_'+uuid4().hex; calls.append(call); return call
+            call = scope+'_'+uuid4().hex; calls.append(call); return call
         def rpc(self, name, *args):
             values = tuple(Jsonb(x) if isinstance(x, dict) else x for x in args)
             return db.execute('select public.'+name+'('+','.join(['%s']*len(args))+')', values).fetchone()[0]
@@ -31,7 +32,7 @@ def workflow():
                 property_type='residential', issue_summary='Annual AC maintenance',service_address='152 West 72nd Street',
                 service_unit='4B',service_city='New York',service_state='NY',service_zip='10023',callback_number='+12125550188',**overrides))
             return call, self.update(call,1,{'address_confirmed':True,'callback_confirmed':True},'152 West 72nd Street','+12125550188')
-    w=Workflow(); w.db=db; w.connect=connect
+    w=Workflow(); w.db=db; w.connect=connect; w.scope=scope; w.call_ids=calls
     try: yield w
     finally:
         db.execute('delete from public.call_intakes where call_id=any(%s)',(calls,));db.close()
@@ -128,10 +129,10 @@ def test_lookup_deadline_fails_unknown_not_absent(workflow):
 def booking(workflow):
     # Dedicated capacity row; never modify a demo/customer slot.
     slot_id=str(uuid4())
-    workflow.db.execute("""insert into public.appointment_slots(id,zone,service_type,starts_at,ends_at,capacity)
+    workflow.db.execute("""insert into public.appointment_slots(id,zone,service_type,starts_at,ends_at,capacity,inventory_scope)
         values(%s,'manhattan','maintenance',
           ((current_timestamp at time zone 'America/New_York')::date+1+interval '8 hours'+%s*interval '1 microsecond') at time zone 'America/New_York',
-          ((current_timestamp at time zone 'America/New_York')::date+1+interval '11 hours') at time zone 'America/New_York',1)""",(slot_id,uuid4().int%1000000))
+          ((current_timestamp at time zone 'America/New_York')::date+1+interval '11 hours') at time zone 'America/New_York',1,%s)""",(slot_id,uuid4().int%1000000,workflow.scope))
     class Booking:
         def offer(self, call=None, revision=2):
             if call is None:call,_=workflow.ready()
@@ -147,7 +148,7 @@ def booking(workflow):
     try:yield b
     finally:
         # Remove only this fixture's dependents before deleting its capacity.
-        workflow.db.execute('delete from public.call_intakes where call_id in (select call_id from public.booking_proposals where slot_id=%s)',(slot_id,))
+        workflow.db.execute('delete from public.call_intakes where call_id=any(%s)',(workflow.call_ids,))
         workflow.db.execute('delete from public.appointment_slots where id=%s',(slot_id,))
 
 
@@ -256,3 +257,25 @@ def test_expired_membership_cache_is_unknown(workflow):
     result=workflow.rpc('refresh_call_context',call)
     assert result['membership']['membership_status']=='unknown'
     assert result['membership']['status']=='not_checked_for_current_details'
+
+
+def test_test_capacity_cannot_leak_into_another_call_inventory(booking):
+    w=booking.w;original,r=w.ready()
+    other='test_workflow_'+uuid4().hex+'_'+uuid4().hex;w.call_ids.append(other)
+    details={k:v for k,v in r['state']['details'].items() if k not in ('address_confirmed','callback_confirmed','confirmation_quote','callback_confirmation_quote')}
+    w.update(other,0,details)
+    w.update(other,1,{'address_confirmed':True,'callback_confirmed':True},'152 West 72nd Street','+12125550188')
+    assert w.rpc('search_slots',other,2)['status']=='no_availability'
+    assert w.rpc('search_slots',original,2)['slots'][0]['slot_id']==booking.slot_id
+    assert w.rpc('call_inventory_scope','eval_'+str(uuid4()))=='evaluation'
+    assert w.rpc('call_inventory_scope',str(uuid4()))=='demo'
+
+
+def test_gas_action_records_immediately_and_replays_idempotently(workflow):
+    call=workflow.new();op=uuid4().hex
+    first=workflow.rpc('report_gas_emergency',call,op,'I smell gas')
+    assert first['state']['triage']['level']=='emergency'
+    assert first['priority_request']['status']=='recorded'
+    second=workflow.rpc('report_gas_emergency',call,op,'I smell gas')
+    assert second['replayed'] and second['state']['revision']==1
+    assert workflow.rpc('search_slots',call,1)['status']=='not_eligible'
