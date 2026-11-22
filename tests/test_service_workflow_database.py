@@ -228,3 +228,22 @@ def test_no_availability_is_distinct_from_failure(booking):
 def test_risk_blocks_search_even_if_membership_pending(booking):
     call,_=booking.w.ready();booking.w.update(call,2,{'cooling_unavailable':True,'vulnerable_resident':True})
     assert booking.w.rpc('search_slots',call,3)['status']=='not_eligible'
+
+
+def test_followup_is_durable_deduplicated_and_not_notified(workflow):
+    call,_=workflow.ready()
+    a=workflow.rpc('request_followup',call,2,'no_availability','Can you help?')
+    b=workflow.rpc('request_followup',call,2,'no_availability','Can you help?')
+    assert a['reference']==b['reference'] and a['notification_status']=='not_connected'
+    assert workflow.rpc('call_disposition',call)['outcome']=='followup_recorded'
+    assert workflow.rpc('request_followup',call,1,'booking_problem','Help')['status']=='revision_conflict'
+
+
+def test_call_end_does_not_cancel_booking_and_persists_outcome(booking):
+    call,p=booking.offer();booking.confirm(call,p)
+    try:
+        booking.w.rpc('record_call_event',call,{'version':'test'},'customer-ended-call')
+        row=booking.w.db.execute('select final_disposition from public.call_audit where call_id=%s',(call,)).fetchone()[0]
+        assert row['outcome']=='booked' and row['booking']['status']=='booked'
+        assert booking.w.rpc('get_booking_status',call)['status']=='booked'
+    finally:booking.w.db.execute('delete from public.call_audit where call_id=%s',(call,))

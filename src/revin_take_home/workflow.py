@@ -32,10 +32,16 @@ class ConfirmBooking(RevisionRequest):
     caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
 
 
+class FollowupRequest(RevisionRequest):
+    reason: Literal['no_availability','booking_problem','priority','membership_verification','incomplete_intake','booking_change','caller_requested']
+    caller_quote: str = Field(min_length=1,max_length=1000,pattern=r"\S")
+
+
 WORKFLOW_SCHEMAS = {
     'start_membership_check': RevisionRequest, 'refresh_context': EmptyRequest,
     'search_slots': RevisionRequest, 'propose_booking': ProposeBooking,
     'confirm_booking': ConfirmBooking, 'get_booking_status': EmptyRequest,
+    'request_followup': FollowupRequest,
 }
 RPC_NAMES = {'refresh_context': 'refresh_call_context'}
 

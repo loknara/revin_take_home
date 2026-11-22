@@ -1,0 +1,45 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "request_followup",
+    "description": "Persist a demo follow-up when booking cannot complete, membership needs verification, or an existing booking needs a change. Scope is this call only. A recorded result does NOT notify dispatch, promise a callback/ETA, transfer, or cancel an appointment. Give gas safety guidance instead of delaying for this tool.",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "no_availability",
+            "booking_problem",
+            "priority",
+            "membership_verification",
+            "incomplete_intake",
+            "booking_change",
+            "caller_requested"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "caller_quote": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Caller Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "reason",
+        "caller_quote"
+      ],
+      "type": "object"
+    }
+  },
+  "messages": []
+}

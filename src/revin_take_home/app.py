@@ -9,6 +9,7 @@ from contextlib import suppress
 import json
 import os
 import secrets
+import time
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 from uuid import UUID
@@ -17,6 +18,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, SecretStr, ValidationError, model_validator
 
+from .audit import AuditStore, config_fingerprint
 from .workflow import WorkflowStore, WorkflowUnavailable, WORKFLOW_SCHEMAS
 from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_context, normalize_number
 from .supabase_directory import SupabaseDirectory, supabase_client
@@ -105,6 +107,15 @@ class ToolEnvelope(BaseModel):
     message: ToolMessage
 
 
+class EndCallMessage(CallMessage):
+    type: Literal['end-of-call-report']
+    endedReason: str = Field(default='unknown',max_length=200)
+
+
+class EndCallEnvelope(BaseModel):
+    message: EndCallMessage
+
+
 class EvaluationToolMessage(BaseModel):
     type: Literal["tool-calls"]
     toolCallList: list[ToolCall] = Field(min_length=1, max_length=5)
@@ -126,6 +137,7 @@ def create_app(
     membership_store: MembershipStore | None = None,
     evaluation_store: SupabaseEvaluationStore | None = None,
     workflow_store: WorkflowStore | None = None,
+    audit_store: AuditStore | None = None,
 ) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
     db_client = None
@@ -133,6 +145,8 @@ def create_app(
         db_client = supabase_client(
             settings.supabase_url, settings.supabase_secret_key.get_secret_value()
         )
+        if audit_store is None:
+            audit_store = AuditStore(db_client)
         if workflow_store is None:
             workflow_store = WorkflowStore(db_client)
         if directory is None:
@@ -180,11 +194,22 @@ def create_app(
     async def health() -> dict:
         return {"status": "ok"}
 
+    @app.get("/version")
+    async def version():
+        return config_fingerprint()
+
+    @app.post("/vapi/events", dependencies=[Depends(authenticate)])
+    async def call_ended(body: EndCallEnvelope):
+        if audit_store is None or not await audit_store.call(body.message.call.id, body.message.endedReason):
+            raise HTTPException(status_code=503, detail="Call outcome save unconfirmed")
+        return {"status": "recorded"}
+
     @app.post("/vapi/tools", dependencies=[Depends(authenticate)])
     async def tool_calls(body: ToolEnvelope) -> dict:
         message = body.message
         results = []
         for tool in message.toolCallList:
+            started = time.monotonic()
             if tool.function.name not in {"update_intake", "resolve_membership", *WORKFLOW_SCHEMAS}:
                 result = {"status": "unsupported_tool"}
             else:
@@ -229,6 +254,9 @@ def create_app(
                         "status": "lookup_unavailable", "membership_status": "unknown",
                         "message": "Membership could not be verified. Do not say the caller is not a member or promise benefits.",
                     }
+            if audit_store is not None:
+                await audit_store.tool(message.call.id, tool.id, tool.function.name,
+                    result.get('status','unknown'), round((time.monotonic()-started)*1000))
             results.append({"toolCallId": tool.id, "result": json.dumps(result)})
         return {"results": results}
 
@@ -239,6 +267,8 @@ def create_app(
             message.call.id, message.originating_number(),
             directory,
         )
+        if audit_store is not None:
+            await audit_store.call(message.call.id)
         # Vapi substitutes this string into {{caller_context}} in the prompt.
         # Supplying variables alone does not put them in the model's context.
         return {
