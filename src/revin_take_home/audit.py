@@ -12,11 +12,12 @@ ROOT=Path(__file__).resolve().parents[2]
 
 
 def config_fingerprint():
-    files=[ROOT/'prompts/summit-air-system.txt',*sorted((ROOT/'tools').glob('*.json'))]
+    files=[ROOT/'config/voice-baseline.json',ROOT/'prompts/summit-air-system.txt',*sorted((ROOT/'tools').glob('*.json'))]
     digest=hashlib.sha256()
     for path in files:
         if path.exists():digest.update(path.name.encode()+b'\0'+path.read_bytes())
     return {'prompt_tools_sha256':digest.hexdigest(),'backend_commit':os.getenv('RENDER_GIT_COMMIT','local'),
+            'configured_pipeline':json.loads((ROOT/'config/voice-baseline.json').read_text()),
             'policy_version':'demo-coverage-v1','runtime':'vapi-cascade','timezone':'America/New_York'}
 
 

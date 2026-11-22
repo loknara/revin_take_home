@@ -71,3 +71,13 @@ Verified against Vapi's public OpenAPI and guides on November 21, 2026:
 - [Public OpenAPI](https://api.vapi.ai/api-json)
 
 No paid run has been performed during harness setup. Live simulator payload delivery, audio quality and provider billing availability remain unverified until an authorized smoke run.
+
+## Completed workflow coverage
+
+The suite now includes routine bookings, corrected addresses/units, property-specific membership, differing callbacks, commercial/non-HVAC/out-of-area rejection, landlord intake, declined offers, manipulation attempts and gas emerging during booking. `delayed_membership_booking` introduces an authenticated, session-scoped eight-second delay; it checks that the callback was saved during the lookup and that a usable membership result actually reached the model. Failed trials remain failed in their reports, even if later code fixes them.
+
+Backend transaction checks separately cover last-place races, expired/stale offers, corrections that return to their original value, idempotent replay after a lost response, post-commit correction/hangup, unknown storage outcomes, worker lease recovery, expired reads and stale property results. These checks are deterministic; conversation assertions also inspect tool ordering and the actual persisted appointment/agreement. A provider judge passing is insufficient.
+
+Chat simulation message timestamps may be synthetic sequential values. Do not use those values to claim STT/TTS latency or time to spoken safety guidance. `tool_audit.elapsed_ms` measures backend operation time only. Voice-quality/release gates still need authorized voice runs and human phone review. Voice profiles are configured but are not exercised by chat transport.
+
+The simulation endpoint is available only to a holder of the backend webhook credential. It uses fixed synthetic phone fixtures and server-generated call IDs. Simulations use a separate synthetic inventory from phone calls; each direct database fixture also has its own inventory. Three early chat bookings from before inventory isolation remain in the original demo inventory as historical evidence. No real customer calendar exists. Do not run this harness against a real dispatch system without a separate isolated test tenant.

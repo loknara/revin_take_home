@@ -1,0 +1,5 @@
+{
+  "model": {"provider": "openai", "model": "gpt-4.1"},
+  "transcriber": {"provider": "soniox", "model": "stt-rt-v5", "language": "en", "languages": ["en"], "fallbackPlan": {"autoFallback": {"enabled": true}}},
+  "voice": {"provider": "vapi", "voiceId": "Elliot", "version": "2"}
+}
