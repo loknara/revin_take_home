@@ -279,3 +279,14 @@ def test_gas_action_records_immediately_and_replays_idempotently(workflow):
     second=workflow.rpc('report_gas_emergency',call,op,'I smell gas')
     assert second['replayed'] and second['state']['revision']==1
     assert workflow.rpc('search_slots',call,1)['status']=='not_eligible'
+
+
+def test_end_report_before_commit_is_reconciled_by_late_booking(booking):
+    call,p=booking.offer()
+    try:
+        booking.w.rpc('record_call_event',call,{'version':'test'},'customer-ended-call')
+        booked=booking.confirm(call,p)
+        final=booking.w.db.execute('select final_disposition from public.call_audit where call_id=%s',(call,)).fetchone()[0]
+        assert final['outcome']=='booked'
+        assert final['booking']['reference']==booked['reference']
+    finally:booking.w.db.execute('delete from public.call_audit where call_id=%s',(call,))
