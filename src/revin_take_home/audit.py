@@ -9,6 +9,8 @@ import httpx
 
 log=logging.getLogger(__name__)
 ROOT=Path(__file__).resolve().parents[2]
+if not (ROOT/'prompts/summit-air-system.txt').exists():
+    ROOT=Path(__file__).resolve().parent  # Resources bundled in a non-editable wheel.
 
 
 def config_fingerprint():

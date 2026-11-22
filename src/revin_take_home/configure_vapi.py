@@ -4,6 +4,7 @@ import copy
 from datetime import datetime, timezone
 import json
 import os
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -32,6 +33,15 @@ def assistant_patch(live, tool_ids, backend, credential):
             'firstMessage':"Hi, this is Summit Air's AI assistant for a demo. How can I help?"}
 
 
+def matching_tool(existing, desired):
+    for tool in existing:
+        if (tool.get('function')==desired['function'] and tool.get('async',False)==desired.get('async',False)
+            and tool.get('messages',[])==desired.get('messages',[])
+            and all(tool.get('server',{}).get(k)==v for k,v in desired['server'].items())):
+            return tool['id']
+    return None
+
+
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--apply',action='store_true')
@@ -55,10 +65,15 @@ def main(argv=None):
             api.patch('/phone-number/'+phone['id'],json={'hooks':phone.get('hooks',[])}).raise_for_status()
             print('Restored previous assistant and phone hooks; no call started.');return 0
         if not args.phone_id:p.error('--phone-id is required with --apply')
-        with httpx.Client(timeout=20) as backend:
-            r=backend.get(args.backend_url+'/version');r.raise_for_status()
-            if r.json().get('prompt_tools_sha256')!=config_fingerprint()['prompt_tools_sha256']:
-                raise RuntimeError('Backend prompt/tool version differs; wait for deployment before activating')
+        with httpx.Client(timeout=10) as backend:
+            deadline=time.monotonic()+300
+            while True:
+                try:
+                    r=backend.get(args.backend_url+'/version');r.raise_for_status()
+                    if r.json().get('prompt_tools_sha256')==config_fingerprint()['prompt_tools_sha256']:break
+                except (httpx.HTTPError,ValueError):pass
+                if time.monotonic()>=deadline:raise RuntimeError('Backend not ready; live assistant unchanged')
+                print('Waiting for hosted backend readiness.',flush=True);time.sleep(5)
         live=api.get('/assistant/'+aid);live.raise_for_status();live=live.json()
         baseline=json.loads((ROOT/'config/voice-baseline.json').read_text())
         for section,fields in baseline.items():
@@ -75,14 +90,26 @@ def main(argv=None):
         if not servers or len(creds)!=1 or None in creds:raise RuntimeError('Missing/ambiguous existing server credential')
         credential=creds.pop()
         if any(s.get('url')!=args.backend_url+'/vapi/tools' for s in servers):raise RuntimeError('Unexpected existing tool backend')
-        folder=ROOT/'eval-results'/('deployment-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+str(uuid4())[:8])
+        folder=Path.cwd()/'eval-results'/('deployment-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+str(uuid4())[:8])
         private_json(folder/'backup.json',{'assistant':live,'phone':phone})
         ids=[]
+        listed=api.get('/tool');listed.raise_for_status();existing=listed.json()
+        if not isinstance(existing,list):existing=existing.get('results',[])
         # Create new versions rather than mutating tools used by calls already in progress.
         for name in sorted(ALLOWED_TOOLS):
             tool=json.loads((ROOT/f'tools/{name}.json').read_text())
             tool['server']={'url':args.backend_url+'/vapi/tools','credentialId':credential,'timeoutSeconds':10}
-            r=api.post('/tool',json=tool);r.raise_for_status();ids.append(r.json()['id'])
+            tid=matching_tool(existing,tool)
+            if tid is None:
+                try:
+                    r=api.post('/tool',json=tool);r.raise_for_status();tid=r.json()['id']
+                except httpx.TimeoutException:
+                    # A timed-out creation may have succeeded. Reconcile; never blindly retry POST.
+                    listed=api.get('/tool');listed.raise_for_status();found=listed.json()
+                    if not isinstance(found,list):found=found.get('results',[])
+                    tid=matching_tool(found,tool)
+                    if tid is None:raise RuntimeError('Tool creation unconfirmed; live assistant unchanged. Reconcile provider tools before retrying.')
+            ids.append(tid)
             private_json(folder/'created-tools.json',ids)
         patch=assistant_patch(live,ids,args.backend_url,credential)
         api.patch('/assistant/'+aid,json=patch).raise_for_status()

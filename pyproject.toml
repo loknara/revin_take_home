@@ -22,3 +22,9 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"prompts" = "revin_take_home/prompts"
+"tools" = "revin_take_home/tools"
+"config" = "revin_take_home/config"
+"evals" = "revin_take_home/evals"

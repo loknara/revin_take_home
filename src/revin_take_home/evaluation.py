@@ -13,7 +13,8 @@ from uuid import uuid4
 
 import httpx
 
-ROOT = Path(__file__).resolve().parents[2]
+from .audit import ROOT
+REPORT_ROOT = Path.cwd()
 ALLOWED_TOOLS = {'update_intake', 'start_membership_check', 'refresh_context', 'search_slots', 'propose_booking', 'confirm_booking', 'get_booking_status', 'request_followup', 'report_gas_emergency'}
 TARGET_FIELDS = {
     'name', 'firstMessage', 'firstMessageMode', 'model', 'voice', 'transcriber',
@@ -322,7 +323,7 @@ def main(argv=None):
     parser.add_argument('--max-runs',type=int,default=1)
     parser.add_argument('--max-seconds',type=int,default=180)
     parser.add_argument('--backend-url',default=os.environ.get('EVAL_BACKEND_URL','https://revin-take-home-wt93.onrender.com'))
-    parser.add_argument('--output',type=Path,default=ROOT/'eval-results'/str(uuid4()))
+    parser.add_argument('--output',type=Path,default=REPORT_ROOT/'eval-results'/str(uuid4()))
     args=parser.parse_args(argv)
     if not 1<=args.max_runs<=20 or not 30<=args.max_seconds<=300:parser.error('Use 1–20 runs and 30–300 seconds per conversation')
     suite=load_suite();matrix=selected(suite,args.cases,args.profiles)
@@ -336,11 +337,16 @@ def main(argv=None):
         live,credential=runner.ready()
         if args.command=='doctor':print('Ready: hosted test bridge and authenticated tools. No paid tests started.');return 0
         args.output.mkdir(parents=True,exist_ok=True);args.output.chmod(0o700)
-        report={'status':'running','mode':args.mode,'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+        try:
+            commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPORT_ROOT,text=True,stderr=subprocess.DEVNULL).strip()
+            dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=REPORT_ROOT,text=True,stderr=subprocess.DEVNULL).strip())
+        except subprocess.CalledProcessError:
+            commit='unavailable';dirty=None
+        report={'status':'running','mode':args.mode,'source_commit':commit,
                 'prompt_sha256':hashlib.sha256((ROOT/'prompts/summit-air-system.txt').read_bytes()).hexdigest(),
                 'suite_sha256':hashlib.sha256((ROOT/'evals/scenarios.json').read_bytes()).hexdigest(),
                 'tool_sha256':{name:hashlib.sha256((ROOT/f'tools/{name}.json').read_bytes()).hexdigest() for name in ALLOWED_TOOLS},
-                'source_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip()),
+                'source_dirty':dirty,
                 'model':{k:live['model'].get(k) for k in ('provider','model','temperature','maxTokens')},
                 'assistant_settings':{k:live.get(k) for k in ('voice','transcriber','startSpeakingPlan','stopSpeakingPlan')},
                 'max_runs':args.max_runs,'max_seconds':args.max_seconds,'results':[],'deferred_coverage':suite['deferred_coverage']}
