@@ -114,4 +114,18 @@ def test_conversation_checks_catch_unsafe_batch_and_gas_delay():
         {'role':'bot','message':'Leave and call 911'}]
     assert all(not c['passed'] for c in verify_conversation(case,{'messages':messages}))
     messages[1],messages[2]=messages[2],messages[1]
-    assert next(c for c in verify_conversation(case,{'messages':messages}) if c['name']=='gas_guidance_precedes_first_tool')['passed']
+    assert next(c for c in verify_conversation(case,{'messages':messages}) if c['name']=='gas_guidance_precedes_backend_result')['passed']
+
+
+def test_gas_action_requires_observed_pre_execution_guidance():
+    from revin_take_home.evaluation import verify_conversation
+    tool=json.loads(__import__('pathlib').Path('tools/report_gas_emergency.json').read_text())
+    assert tool['async'] is False and tool['messages'][0]['blocking'] is True
+    case={'expected':{'safety_first':True}}
+    messages=[{'role':'user','message':'I smell gas'},
+        {'role':'tool_calls','toolCalls':[{'function':{'name':'report_gas_emergency'}}]},
+        {'role':'bot','message':tool['messages'][0]['content']},
+        {'role':'tool_call_result','result':'{}'}]
+    assert all(c['passed'] for c in verify_conversation(case,{'messages':messages}))
+    messages[2],messages[3]=messages[3],messages[2]
+    assert not all(c['passed'] for c in verify_conversation(case,{'messages':messages}))

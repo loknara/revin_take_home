@@ -32,6 +32,10 @@ class ConfirmBooking(RevisionRequest):
     caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
 
 
+class GasEmergency(EmptyRequest):
+    caller_quote: str = Field(min_length=1,max_length=1000,pattern=r"\S")
+
+
 class FollowupRequest(RevisionRequest):
     reason: Literal['no_availability','booking_problem','priority','membership_verification','incomplete_intake','booking_change','caller_requested']
     caller_quote: str = Field(min_length=1,max_length=1000,pattern=r"\S")
@@ -41,7 +45,7 @@ WORKFLOW_SCHEMAS = {
     'start_membership_check': RevisionRequest, 'refresh_context': EmptyRequest,
     'search_slots': RevisionRequest, 'propose_booking': ProposeBooking,
     'confirm_booking': ConfirmBooking, 'get_booking_status': EmptyRequest,
-    'request_followup': FollowupRequest,
+    'request_followup': FollowupRequest, 'report_gas_emergency': GasEmergency,
 }
 RPC_NAMES = {'refresh_context': 'refresh_call_context'}
 
@@ -65,9 +69,12 @@ class WorkflowStore:
 
     async def execute(self, name, call_id, operation_id, request):
         payload = {'p_call_id': call_id, **{'p_'+k: v for k,v in request.model_dump(mode='json').items()}}
+        if name == 'report_gas_emergency':payload['p_operation_id']=operation_id
         result = await self.rpc(RPC_NAMES.get(name, name), payload)
         if not isinstance(result, dict) or 'status' not in result:
             raise WorkflowUnavailable
+        if isinstance(result.get('state'),dict):
+            result['state'].pop('originating_number',None)
         if name == 'start_membership_check':
             self.wake.set()
         return result

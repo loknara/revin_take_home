@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "update_intake",
-    "description": "Required after a caller provides or corrects intake facts, BEFORE the next question. Save initial job and confirmed caller name immediately, not only address details. Backend automatically queues membership after a complete eligible address and name are confirmed. Saves risk immediately. One tool at a time using the latest revision. Gas safety guidance must precede this tool. Does not book or notify.",
+    "description": "Required after a caller provides or corrects intake facts, BEFORE the next question. Save initial job and confirmed caller name immediately, not only address details. Backend automatically queues membership after a complete eligible address and name are confirmed. Saves risk immediately. One tool at a time using the latest revision. For a suspected gas smell, use report_gas_emergency INSTEAD of this tool; it speaks immediate safety guidance before saving. Does not book or notify.",
     "parameters": {
       "type": "object",
       "additionalProperties": false,
@@ -114,18 +114,6 @@
                 "unknown"
               ],
               "description": "Caller reports an elderly resident or a health vulnerability to loss of cooling. Do not collect diagnosis details. Use unknown if explicitly uncertain; omit if not discussed."
-            },
-            "gas_smell_reported": {
-              "type": [
-                "boolean",
-                "string"
-              ],
-              "enum": [
-                true,
-                false,
-                "unknown"
-              ],
-              "description": "True for any current suspected gas smell/leak reported by the caller, including faint or uncertain suspected smells. False only for an explicit denial/correction; unknown only when no suspected incident is established. Do not mark true for a hypothetical question or a mention of gas equipment. Give immediate safety guidance before saving."
             },
             "service_unit": {
               "type": "string",

@@ -1,0 +1,30 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "report_gas_emergency",
+    "description": "FIRST action for a current suspected gas smell or leak, even mid-booking. This tool plays fixed evacuation and 911 guidance BEFORE the backend request. Do not use update_intake first or ask administrative questions. Do not use for a merely hypothetical question. No one is contacted or dispatched.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caller_quote"
+      ],
+      "properties": {
+        "caller_quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "Actual short caller quote reporting the suspected gas smell."
+        }
+      }
+    }
+  },
+  "messages": [
+    {
+      "type": "request-start",
+      "blocking": true,
+      "content": "Leave the area with everyone now. Don't use switches or appliances. Once safely away, call 911."
+    }
+  ]
+}
