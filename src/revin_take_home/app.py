@@ -300,7 +300,7 @@ def create_app(
         if evaluation_store is None:
             raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
         try:
-            session = await evaluation_store.create(body.fixture_key)
+            session = await evaluation_store.create(body.fixture_key, body.lookup_delay_ms)
         except EvaluationUnavailable:
             raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
         context = await bootstrap_context(session.call_id, session.originating_number, directory)

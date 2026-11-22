@@ -4,12 +4,13 @@ from typing import Literal
 from uuid import UUID
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NewEvaluationSession(BaseModel):
     model_config = ConfigDict(extra='forbid')
     fixture_key: Literal['maya', 'shared', 'unknown', 'withheld']
+    lookup_delay_ms: int = Field(default=0,ge=0,le=8000,strict=True)
 
 
 class EvaluationUnavailable(Exception):
@@ -32,11 +33,15 @@ class SupabaseEvaluationStore:
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
 
-    async def create(self, fixture_key):
+    async def create(self, fixture_key, lookup_delay_ms=0):
         try:
             r = await self.client.post('rpc/create_evaluation_session', json={'p_fixture_key': fixture_key}, timeout=3)
             r.raise_for_status()
-            return EvaluationSession.model_validate(r.json())
+            session = EvaluationSession.model_validate(r.json())
+            if lookup_delay_ms:
+                configured = await self.client.post('rpc/configure_evaluation_delay', json={'p_session_id':str(session.id),'p_delay_ms':lookup_delay_ms},timeout=3)
+                configured.raise_for_status()
+            return session
         except (httpx.HTTPError, ValueError) as exc:
             raise EvaluationUnavailable from exc
 
@@ -65,6 +70,14 @@ class SupabaseEvaluationStore:
             'intake_events': 'operation_id,applied_revision,changes,caller_quote,created_at',
             'priority_requests': 'id,highest_level,current_level,status,notification_status,latest_intake_revision,needs_review,created_at',
             'call_membership_checks': 'intake_revision,input_snapshot,result,checked_at',
+            'enrichment_jobs': 'id,status,input_revision,dependency_snapshot,created_at,completed_at,result',
+            'availability_reads': 'id,dependency_snapshot,result,created_at,expires_at',
+            'booking_proposals': 'id,slot_id,material_revision,intake_snapshot,status,created_at,expires_at',
+            'booking_agreements': 'proposal_id,intake_revision,caller_quote,decision,source,created_at',
+            'appointments': 'id,proposal_id,slot_id,intake_snapshot,status,dispatch_status,created_at',
+            'followup_requests': 'id,reasons,status,notification_status,created_at',
+            'tool_audit': 'operation_id,tool_name,result_status,elapsed_ms,created_at,config_version',
+            'call_audit': 'config,ended_reason,final_disposition',
         }
         data = {}
         try:

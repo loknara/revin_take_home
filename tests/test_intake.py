@@ -104,7 +104,7 @@ def test_saved_commercial_intake_is_not_booking_eligibility():
                 "call", "operation", None, UpdateIntake.model_validate(request())
             )
             assert result["eligibility"] == "out_of_scope"
-            assert result["booking_status"] == "not_booked"
+            assert result["booking_status"] == "not_checked"
             assert "address_confirmation" in result["missing_fields"]
             assert "originating_number" not in result["state"]
     asyncio.run(run())

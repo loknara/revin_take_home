@@ -121,7 +121,10 @@ class SupabaseIntakeStore:
                 "out_of_scope" if details.get("property_type") == "commercial"
                 else "not_evaluated"
             ))
-            result.setdefault("booking_status", "not_booked")
+            if "readiness" in result:
+                result["missing_fields"] = result["readiness"]["missing_fields"]
+                result["eligibility"] = result["readiness"]["scope"]
+            result.setdefault("booking_status", "not_checked")
             return result
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             raise IntakeUnavailable("Intake save could not be confirmed") from exc
