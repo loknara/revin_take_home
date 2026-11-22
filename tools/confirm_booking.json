@@ -1,0 +1,46 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "confirm_booking",
+    "description": "Only AFTER a separate clear answer agreeing to the specific current proposal, commit accepted or record declined with the actual caller quote. Silence, an unrelated yes, partial speech or a correction is NOT agreement. Never combine with propose_booking in one turn. After any unconfirmed response call get_booking_status before retrying the SAME proposal; never create a duplicate.",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "proposal_id": {
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "title": "Proposal Id",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "accepted",
+            "declined"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "caller_quote": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Caller Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "proposal_id",
+        "decision",
+        "caller_quote"
+      ],
+      "type": "object"
+    }
+  },
+  "messages": []
+}

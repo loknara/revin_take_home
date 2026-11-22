@@ -1,0 +1,23 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "search_slots",
+    "description": "Read up to three available synthetic arrival windows for the confirmed residential HVAC address. Can prefetch before callback confirmation. Save a requested date first. Slots are not reserved. Distinguish no_availability from an unavailable lookup.",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_revision"
+      ],
+      "type": "object"
+    }
+  },
+  "messages": []
+}

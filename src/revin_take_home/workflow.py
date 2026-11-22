@@ -2,6 +2,7 @@
 import asyncio
 from contextlib import suppress
 import logging
+from typing import Annotated, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,7 +18,25 @@ class RevisionRequest(EmptyRequest):
     expected_revision: int = Field(ge=0)
 
 
-WORKFLOW_SCHEMAS = {'start_membership_check': RevisionRequest, 'refresh_context': EmptyRequest}
+Identifier = Annotated[str, Field(pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")]
+
+
+class ProposeBooking(RevisionRequest):
+    search_id: Identifier
+    slot_id: Identifier
+
+
+class ConfirmBooking(RevisionRequest):
+    proposal_id: Identifier
+    decision: Literal['accepted', 'declined']
+    caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
+
+
+WORKFLOW_SCHEMAS = {
+    'start_membership_check': RevisionRequest, 'refresh_context': EmptyRequest,
+    'search_slots': RevisionRequest, 'propose_booking': ProposeBooking,
+    'confirm_booking': ConfirmBooking, 'get_booking_status': EmptyRequest,
+}
 RPC_NAMES = {'refresh_context': 'refresh_call_context'}
 
 

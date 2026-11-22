@@ -122,3 +122,109 @@ def test_lookup_deadline_fails_unknown_not_absent(workflow):
     r=workflow.rpc('refresh_call_context',call)
     assert r['jobs'][0]['status']=='timed_out'
     assert r['membership']['membership_status']=='unknown'
+
+
+@pytest.fixture
+def booking(workflow):
+    # Dedicated capacity row; never modify a demo/customer slot.
+    slot_id=str(uuid4())
+    workflow.db.execute("""insert into public.appointment_slots(id,zone,service_type,starts_at,ends_at,capacity)
+        values(%s,'manhattan','maintenance',
+          ((current_timestamp at time zone 'America/New_York')::date+1+interval '8 hours'+%s*interval '1 microsecond') at time zone 'America/New_York',
+          ((current_timestamp at time zone 'America/New_York')::date+1+interval '11 hours') at time zone 'America/New_York',1)""",(slot_id,uuid4().int%1000000))
+    class Booking:
+        def offer(self, call=None, revision=2):
+            if call is None:call,_=workflow.ready()
+            found=workflow.rpc('search_slots',call,revision)
+            assert found['status']=='available'
+            assert any(s['slot_id']==slot_id for s in found['slots'])
+            p=workflow.rpc('propose_booking',call,revision,found['search_id'],slot_id)
+            assert p['status']=='offered'
+            return call,p
+        def confirm(self,call,p,revision=2,decision='accepted'):
+            return workflow.rpc('confirm_booking',call,revision,p['proposal_id'],decision,'Yes, that window works' if decision=='accepted' else 'No')
+    b=Booking();b.slot_id=slot_id;b.w=workflow
+    try:yield b
+    finally:
+        # Remove only this fixture's dependents before deleting its capacity.
+        workflow.db.execute('delete from public.call_intakes where call_id in (select call_id from public.booking_proposals where slot_id=%s)',(slot_id,))
+        workflow.db.execute('delete from public.appointment_slots where id=%s',(slot_id,))
+
+
+def test_booking_requires_offer_then_agreement_and_is_idempotent(booking):
+    call,p=booking.offer(); w=booking.w
+    assert w.rpc('get_booking_status',call)['status']=='not_booked'
+    result=booking.confirm(call,p)
+    assert result['status']=='booked' and result['dispatch_status']=='demo_only'
+    assert result['timezone']=='America/New_York'
+    retry=booking.confirm(call,p)
+    assert retry['reference']==result['reference']
+    assert w.rpc('get_booking_status',call)['reference']==result['reference']
+    assert w.db.execute('select count(*) from public.booking_agreements where call_id=%s',(call,)).fetchone()[0]==1
+
+
+def test_two_callers_last_slot_race_has_one_winner(booking):
+    from concurrent.futures import ThreadPoolExecutor
+    a,pa=booking.offer();b,pb=booking.offer()
+    def confirm(pair):
+        call,p=pair
+        with booking.w.connect() as db:
+            return db.execute('select public.confirm_booking(%s,2,%s,%s,%s)',(call,p['proposal_id'],'accepted','Yes')).fetchone()[0]
+    with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(confirm,[(a,pa),(b,pb)]))
+    assert sorted(r['status'] for r in results)==['booked','slot_conflict']
+    assert booking.w.db.execute('select count(*) from public.appointments where slot_id=%s',(booking.slot_id,)).fetchone()[0]==1
+
+
+@pytest.mark.parametrize('patch',[{'service_address':'154 West 72nd Street'},{'callback_number':'+12125550177'},
+    {'gas_smell_reported':True},{'preferred_date':'2026-12-31'},{'property_type':'commercial'}])
+def test_material_correction_invalidates_offer(booking,patch):
+    call,p=booking.offer();booking.w.update(call,2,patch)
+    assert booking.confirm(call,p,3)['status']=='stale_proposal'
+    assert booking.w.rpc('get_booking_status',call)['status']=='not_booked'
+
+
+def test_correction_back_to_original_does_not_revive_old_agreement(booking):
+    call,p=booking.offer();booking.w.update(call,2,{'issue_summary':'Different job'})
+    booking.w.update(call,3,{'issue_summary':'Annual AC maintenance'})
+    assert booking.confirm(call,p,4)['status']=='stale_proposal'
+
+
+def test_access_notes_preserve_offer_and_are_saved_in_appointment(booking):
+    call,p=booking.offer();booking.w.update(call,2,{'access_notes':'Use side gate'})
+    r=booking.confirm(call,p,3)
+    assert r['status']=='booked' and r['details']['access_notes']=='Use side gate'
+
+
+def test_decline_or_expiration_never_books(booking):
+    call,p=booking.offer();assert booking.confirm(call,p,decision='declined')['status']=='declined'
+    assert booking.confirm(call,p)['status']=='stale_proposal'
+    c,p2=booking.offer();booking.w.db.execute("update public.booking_proposals set expires_at=clock_timestamp()-interval '1 second' where id=%s",(p2['proposal_id'],))
+    assert booking.confirm(c,p2)['status']=='stale_proposal'
+
+
+def test_slot_cannot_be_invented_or_borrowed_from_another_call(booking):
+    call,p=booking.offer();other,_=booking.w.ready()
+    assert booking.w.rpc('confirm_booking',other,2,p['proposal_id'],'accepted','Yes')['status']=='unknown_proposal'
+    search=booking.w.rpc('search_slots',call,2)
+    assert booking.w.rpc('propose_booking',other,2,search['search_id'],booking.slot_id)['status']=='stale_availability'
+    assert booking.w.rpc('propose_booking',call,2,search['search_id'],str(uuid4()))['status']=='invalid_slot'
+
+
+def test_hangup_or_post_commit_correction_does_not_cancel_or_duplicate(booking):
+    call,p=booking.offer();r=booking.confirm(call,p)
+    booking.w.update(call,2,{'service_unit':'5B'})
+    status=booking.w.rpc('get_booking_status',call)
+    assert status['reference']==r['reference'] and status['change_requires_followup']
+    assert booking.confirm(call,p,3)['reference']==r['reference']
+    assert status['details']['service_unit']=='4B'
+
+
+def test_no_availability_is_distinct_from_failure(booking):
+    call,_=booking.w.ready();booking.w.update(call,2,{'preferred_date':'2000-01-01'})
+    r=booking.w.rpc('search_slots',call,3)
+    assert r['status']=='no_availability' and r['slots']==[]
+
+
+def test_risk_blocks_search_even_if_membership_pending(booking):
+    call,_=booking.w.ready();booking.w.update(call,2,{'cooling_unavailable':True,'vulnerable_resident':True})
+    assert booking.w.rpc('search_slots',call,3)['status']=='not_eligible'

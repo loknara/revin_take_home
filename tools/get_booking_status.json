@@ -1,0 +1,14 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "get_booking_status",
+    "description": "Reconcile a possibly committed booking for this call. Use after timeout/uncertain confirmation. Only status booked establishes a persistent DEMO appointment. Corrections or interrupted closing do not cancel it. If change_requires_followup, explain the existing booking and record a change request.",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    }
+  },
+  "messages": []
+}
