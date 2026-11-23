@@ -47,6 +47,22 @@
       "type": "request-start",
       "content": "",
       "blocking": false
+    },
+    {
+      "type": "request-response-delayed",
+      "timingMilliseconds": 3000,
+      "contents": [
+        {
+          "type": "text",
+          "language": "en",
+          "text": "Thanks for waiting, I'm still working on it."
+        },
+        {
+          "type": "text",
+          "language": "es",
+          "text": "Gracias por esperar, sigo trabajando en ello."
+        }
+      ]
     }
   ]
 }

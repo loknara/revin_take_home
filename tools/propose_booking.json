@@ -36,6 +36,22 @@
       "type": "request-start",
       "content": "",
       "blocking": false
+    },
+    {
+      "type": "request-response-delayed",
+      "timingMilliseconds": 3000,
+      "contents": [
+        {
+          "type": "text",
+          "language": "en",
+          "text": "I'm still checking that window."
+        },
+        {
+          "type": "text",
+          "language": "es",
+          "text": "Sigo revisando ese horario."
+        }
+      ]
     }
   ]
 }

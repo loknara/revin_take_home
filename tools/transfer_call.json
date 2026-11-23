@@ -4,12 +4,12 @@
     {
       "type": "number",
       "number": "{{TRANSFER_NUMBER}}",
-      "description": "Summit Air staff (office during business hours, on-call dispatcher after hours). Use only when the call-start context allows a live transfer and the caller wants a person or the situation needs one, after telling the caller you're connecting them.",
+      "description": "Summit Air office staff, during business hours only. Use only when the call-start context allows a live transfer and the caller wants a person or the situation needs one, after telling the caller you're connecting them.",
       "message": "Connecting you with our team now. Please stay on the line.",
       "transferPlan": {
         "mode": "blind-transfer",
         "fallbackPlan": {
-          "message": "I wasn't able to reach anyone right now. I've noted that you'd like a call back, and I can keep helping you here.",
+          "message": "I wasn't able to reach anyone just now. I can take a callback request for our office, or keep helping you here.",
           "endCallEnabled": false
         }
       }
@@ -18,7 +18,8 @@
   "messages": [
     {
       "type": "request-failed",
-      "content": "I wasn't able to connect you. I've noted that you'd like a call back."
+      "role": "system",
+      "content": "The transfer failed and nobody was reached. Nothing has been recorded yet, so do not say a callback was noted or requested. Tell the caller you couldn't reach anyone, then offer to record a callback request with request_followup (reason caller_requested) or to keep helping them yourself."
     }
   ]
 }
