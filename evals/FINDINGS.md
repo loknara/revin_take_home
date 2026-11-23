@@ -8,6 +8,40 @@ via `./scripts/chat`, and Vapi voice simulations from `evals/scenarios.json`
 Status: **FIXED** (done and verified) · **OPEN** (ready to hand off) · **DECIDE** (needs an
 owner/product call first).
 
+## Round 3: rerun after the round 2 fixes (2026-11-23)
+
+Same setup as round 2, after fixing R1, R2, R4, R5, R7 and R8 (commits `c7a2c4b`..`0a0b014`).
+Reran the 18 scenarios that didn't pass in round 2, two batches at a time (no queue
+timeouts). Target-call cost $3.35. Reports in `eval-results/voice/round3/`.
+
+**Result: 13 of 18 pass, so 24 of 29 scenarios pass at their latest run** (the 11 round 2
+passes weren't rerun after these fixes).
+
+- **Fixed and verified:** withheld_number, unmatched_customer, out_of_area (R1/R2 guard),
+  no_heat_elderly_when_asked (the round 2 regression), injection_attempt and non_hvac (R4:
+  declines saved), gas_emergency on the noisy line (R5: no restarts; passes the judge),
+  landlord.
+- **Passed on their first scored run:** active_member, alternate_number,
+  shared_number_nonmember, inactive_member, maintenance_service_first.
+
+| Scenario | Result | What happened |
+|---|---|---|
+| expired_dispute | fail | Claim saved (`membership_claim=true`), booked at the right address, but no `membership_verification` follow-up: the claim came before the lookup said "expired", and the agent never went back to it. R11. |
+| reschedule_request | fail | Follow-up recorded as `booking_change` (what the prompt says) while the scenario expects `caller_requested`, so partly a scenario mismatch. But the agent also saved `address_confirmed` and `callback_confirmed` with the quote "Please have someone from your office call me", without reading anything back. R9. |
+| declined_offer | fail | Tester error: told to decline "at the final booking confirmation", it said "Yes, please book" to the agent's only booking question, then "No, please do not book anything." The agent booked on a clear yes and then said it was booked. Separately, it saved `callback_confirmed` using "Apartment 4B, New York, New York 10023" as the quote, without asking about the number. R9. |
+| repair_service_first | fail | The test caller said "Goodbye" right after the window was offered (call at 110 s of 180). Also: "It's uncomfortable, so I'd like the earliest appointment" was saved as `unsafe_to_wait=true` and the call went urgent for a caller with nobody at risk. R10. |
+| priority_service_first (impatient) | fail | Everything right up to the offer (urgent, vulnerable resident saved in the first save, readback corrected), then the test caller said "Goodbye" at the offer (96 s). |
+
+### Round 3 fix list
+
+| # | Severity | Issue | Fix |
+|---|---|---|---|
+| R9 | **blocker** | **Confirmations still saved without a readback** (O1 again). The guard only checks how the quote is worded and when it arrives; a real caller sentence about something else ("Please have someone call me", "Apartment 4B…") still confirms the address and number. | Backend: Vapi's tool-call webhook can carry the conversation so far (`message.artifact.messages`; verify it's present). Accept `address_confirmed` / `callback_confirmed` only if the agent's previous turn actually read back that street / those last four digits. Prompt: for a callback request, read the number back before `request_followup`. |
+| R10 | major | The "hard to stay comfortable" question turns ordinary discomfort into urgent (`unsafe_to_wait=true`). Over-escalation pages the dispatcher and takes on-call capacity. | Prompt: ask "Is everyone okay to stay there until a technician comes, or does it feel unsafe to wait?" and save `unsafe_to_wait=true` only for unsafe, not uncomfortable; a wish for the earliest slot stays routine. |
+| R11 | minor | A plan claim made before the membership lookup never gets its `membership_verification` follow-up. | Backend: when `membership_claim=true` and the lookup returns anything but active, record the `membership_verification` follow-up automatically (once). |
+| R12 | tooling | Three test-caller problems: `declined_offer` wording ("final booking confirmation") makes it accept; `reschedule_request` expects `caller_requested` instead of `booking_change`; the two service-first callers hung up at the offer. | `evals/scenarios.json`: decline "when asked whether to book the offered window"; expect `booking_change`; tell service-first callers "When offered a window and asked whether to book it, say yes." |
+| R13 | minor | Small polish seen in passing: "Is this a house or another type of home?" asked after a full address; a readback of the raw "12125550101". | Prompt: don't ask property type when the caller said home/house/apartment; always read numbers in digit groups. |
+
 ## Round 2: voice test of the merged fixes (2026-11-23)
 
 Branch `test/fixes-round-1` (backend, prompt and voice fixes merged, plus two small fixes),
