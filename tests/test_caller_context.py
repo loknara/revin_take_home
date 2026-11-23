@@ -4,15 +4,19 @@ import pytest
 from pydantic import ValidationError
 
 from revin_take_home.caller_context import (
-    Candidate, LookupResult, LookupStatus, bootstrap_context, normalize_number,
+    Candidate,
+    LookupResult,
+    LookupStatus,
+    bootstrap_context,
+    normalize_number,
 )
 from revin_take_home.demo import DemoDirectory, MAYA, UnavailableDirectory
 
 
 def run(number, directory=None, **kwargs):
-    return asyncio.run(bootstrap_context(
-        "call_test", number, directory or DemoDirectory(), **kwargs
-    ))
+    return asyncio.run(
+        bootstrap_context("call_test", number, directory or DemoDirectory(), **kwargs)
+    )
 
 
 def test_unique_match_prefills_candidate_without_verifying_identity_or_plan():
@@ -43,13 +47,17 @@ def test_no_match_and_directory_failure_are_different():
     assert failed.for_agent()["membership_status"] == "unknown"
 
 
-@pytest.mark.parametrize("number", [None, "", "anonymous", "blocked", "123", "name 2125550101"])
+@pytest.mark.parametrize(
+    "number", [None, "", "anonymous", "blocked", "123", "name 2125550101"]
+)
 def test_unusable_number_skips_directory(number):
     class MustNotBeCalled:
         async def find_by_phone(self, value):
             raise AssertionError("Lookup should not run")
 
-    assert run(number, MustNotBeCalled()).lookup.status == LookupStatus.NUMBER_UNAVAILABLE
+    assert (
+        run(number, MustNotBeCalled()).lookup.status == LookupStatus.NUMBER_UNAVAILABLE
+    )
 
 
 def test_timeout_returns_generic_context():
@@ -84,6 +92,7 @@ def test_unexpected_errors_are_not_disguised_as_customer_lookup_failures():
     class BrokenDirectory:
         async def find_by_phone(self, number):
             raise RuntimeError("Programming bug")
+
     with pytest.raises(RuntimeError):
         run("+12125550101", BrokenDirectory())
 

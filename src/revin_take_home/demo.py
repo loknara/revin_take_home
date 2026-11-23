@@ -14,6 +14,7 @@ class DemoDirectory:
     """In-memory fixtures only. No real customer or membership claims."""
 
     async def find_by_phone(self, number: str) -> tuple[Candidate, ...]:
+        """Return the fixture candidates for a demo phone number."""
         return {
             "+12125550101": (MAYA,),
             "+12125550102": (OMAR, LEAH),
@@ -22,10 +23,12 @@ class DemoDirectory:
 
 class UnavailableDirectory:
     async def find_by_phone(self, number: str) -> tuple[Candidate, ...]:
+        """Simulate a directory outage for every lookup."""
         raise LookupUnavailable("Simulated directory outage")
 
 
 async def main() -> None:
+    """Print caller context for the built-in demo numbers and failure cases."""
     for label, number, directory in [
         ("Unique match", "(212) 555-0101", DemoDirectory()),
         ("Shared number", "+12125550102", DemoDirectory()),

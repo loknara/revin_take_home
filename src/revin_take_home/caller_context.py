@@ -37,6 +37,7 @@ class LookupResult(Record):
 
     @model_validator(mode="after")
     def check_candidates(self) -> Self:
+        """Require candidate counts that match the lookup status."""
         count = len(self.candidates)
         if len({c.customer_id for c in self.candidates}) != count:
             raise ValueError("Candidates must have distinct customer IDs")
@@ -78,7 +79,9 @@ class LookupUnavailable(Exception):
 
 
 class CustomerDirectory(Protocol):
-    async def find_by_phone(self, number: str) -> tuple[Candidate, ...]: ...
+    async def find_by_phone(self, number: str) -> tuple[Candidate, ...]:
+        """Look up candidates for a normalized phone number."""
+        ...
 
 
 def normalize_number(raw: str | None) -> str | None:
@@ -104,7 +107,10 @@ async def bootstrap_context(
     *,
     lookup_timeout_seconds: float = 1.0,
 ) -> CallContext:
-    """Bound enrichment time. Unexpected programming errors remain visible."""
+    """Look up the caller and return context for a match, miss, timeout, or outage.
+
+    Bound enrichment time. Unexpected programming errors remain visible.
+    """
     if lookup_timeout_seconds <= 0:
         raise ValueError("Lookup timeout must be positive")
     number = normalize_number(raw_number)
@@ -121,8 +127,10 @@ async def bootstrap_context(
             # Deduplicate joined rows without mistaking one customer for many.
             candidates = tuple({row.customer_id: row for row in rows}.values())
             status = (
-                LookupStatus.NO_MATCH if not candidates
-                else LookupStatus.SINGLE if len(candidates) == 1
+                LookupStatus.NO_MATCH
+                if not candidates
+                else LookupStatus.SINGLE
+                if len(candidates) == 1
                 else LookupStatus.MULTIPLE
             )
             result = LookupResult(status=status, candidates=candidates)

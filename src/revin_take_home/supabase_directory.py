@@ -20,6 +20,7 @@ class SupabaseDirectory:
         self.client = client
 
     async def find_by_phone(self, number: str) -> tuple[Candidate, ...]:
+        """Return up to two customer candidates for a phone number."""
         try:
             response = await self.client.get(
                 "customer_phone_numbers",
@@ -36,7 +37,9 @@ class SupabaseDirectory:
             if not isinstance(rows, list):
                 raise ValueError("Expected a list of customer matches")
             return tuple(
-                Candidate(customer_id=row.customer.id, first_name=row.customer.first_name)
+                Candidate(
+                    customer_id=row.customer.id, first_name=row.customer.first_name
+                )
                 for row in (PhoneRow.model_validate(value) for value in rows)
             )
         except (httpx.HTTPError, ValueError) as exc:
@@ -45,6 +48,7 @@ class SupabaseDirectory:
 
 
 def supabase_client(url: str, key: str) -> httpx.AsyncClient:
+    """Build a REST client that sends the Supabase key the right way."""
     headers = {"apikey": key}
     # Legacy service_role keys are JWTs; new sb_secret keys use apikey only.
     if not key.startswith("sb_secret_"):

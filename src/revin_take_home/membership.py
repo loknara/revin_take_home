@@ -16,7 +16,9 @@ class MembershipUnavailable(Exception):
 
 
 class MembershipStore(Protocol):
-    async def resolve(self, call_id: str, request: ResolveMembership) -> dict: ...
+    async def resolve(self, call_id: str, request: ResolveMembership) -> dict:
+        """Resolve membership for a call from saved facts."""
+        ...
 
 
 class SupabaseMembershipStore:
@@ -24,22 +26,38 @@ class SupabaseMembershipStore:
         self.client = client
 
     async def resolve(self, call_id, request):
+        """Resolve membership and reject unexpected statuses."""
         try:
             response = await self.client.post(
                 "rpc/resolve_call_membership",
-                json={"p_call_id": call_id, "p_expected_revision": request.expected_revision},
+                json={
+                    "p_call_id": call_id,
+                    "p_expected_revision": request.expected_revision,
+                },
                 timeout=2.0,
             )
             response.raise_for_status()
             result = response.json()
             if not isinstance(result, dict) or result.get("status") not in {
-                "resolved", "no_match", "ambiguous", "needs_details",
-                "needs_full_name", "needs_address_confirmation", "needs_intake",
-                "revision_conflict", "out_of_scope", "deferred_for_emergency",
+                "resolved",
+                "no_match",
+                "ambiguous",
+                "needs_details",
+                "needs_full_name",
+                "needs_address_confirmation",
+                "needs_intake",
+                "revision_conflict",
+                "out_of_scope",
+                "deferred_for_emergency",
             }:
                 raise ValueError("Unexpected membership result")
             if result.get("membership_status") not in {
-                "active", "inactive", "expired", "not_started", "none", "unknown",
+                "active",
+                "inactive",
+                "expired",
+                "not_started",
+                "none",
+                "unknown",
             }:
                 raise ValueError("Unexpected membership status")
             return result

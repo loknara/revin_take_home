@@ -6,7 +6,11 @@ from typing import Annotated, Literal, Protocol, Self
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .membership import MembershipUnavailable, ResolveMembership, SupabaseMembershipStore
+from .membership import (
+    MembershipUnavailable,
+    ResolveMembership,
+    SupabaseMembershipStore,
+)
 
 MEMBERSHIP_TIMEOUT_SECONDS = 1.0
 
@@ -20,18 +24,24 @@ class IntakeChanges(BaseModel):
     property_type: Literal["residential", "commercial", "unknown"] | None = None
     issue_summary: ShortText | None = None
     service_address: ShortText | None = None
-    service_unit: Annotated[str, Field(min_length=1, max_length=50, pattern=r"\S")] | None = None
+    service_unit: (
+        Annotated[str, Field(min_length=1, max_length=50, pattern=r"\S")] | None
+    ) = None
     service_zip: Annotated[str, Field(pattern=r"^[0-9]{5}$")] | None = None
     service_city: ShortText | None = None
     service_state: Annotated[str, Field(pattern=r"^[A-Z]{2}$")] | None = None
     service_category: Literal["hvac", "other", "unknown"] | None = None
-    callback_number: Annotated[str, Field(pattern=r"^\+[1-9][0-9]{7,14}$")] | None = None
+    callback_number: Annotated[str, Field(pattern=r"^\+[1-9][0-9]{7,14}$")] | None = (
+        None
+    )
     callback_confirmed: bool | None = None
     issue_duration: ShortText | None = None
     equipment_notes: ShortText | None = None
     access_notes: ShortText | None = None
     onsite_contact: ShortText | None = None
-    preferred_date: Annotated[str, Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")] | None = None
+    preferred_date: (
+        Annotated[str, Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")] | None
+    ) = None
     membership_claim: RiskFact | None = None
     address_confirmed: bool | None = None
     service_type: Literal["repair", "maintenance", "other", "unknown"] | None = None
@@ -43,14 +53,18 @@ class IntakeChanges(BaseModel):
     gas_smell_reported: RiskFact | None = None
 
     @model_validator(mode="after")
-    # Reject empty patches, null clears, and confirmations bundled with the value.
     def check_patch(self) -> Self:
+        """Reject empty patches, null clears, and confirmations bundled with the value."""
         if not self.model_fields_set:
             raise ValueError("Provide at least one changed field")
         if any(getattr(self, name) is None for name in self.model_fields_set):
             raise ValueError("Omit unchanged fields; null cannot clear a field")
         if self.address_confirmed and self.model_fields_set & {
-            "service_address", "service_unit", "service_zip", "service_city", "service_state"
+            "service_address",
+            "service_unit",
+            "service_zip",
+            "service_city",
+            "service_state",
         }:
             raise ValueError("Save an address first, then confirm it in a later update")
         if self.callback_confirmed and "callback_number" in self.model_fields_set:
@@ -67,8 +81,8 @@ class UpdateIntake(BaseModel):
     confirmation_callback: ShortText | None = None
 
     @model_validator(mode="after")
-    # Require the exact address or callback when confirming it.
     def check_confirmation(self) -> Self:
+        """Require the exact address or callback when confirming it."""
         if self.changes.address_confirmed is True and not self.confirmation_address:
             raise ValueError("Confirmation must identify the exact saved address")
         if self.changes.callback_confirmed is True and not self.confirmation_callback:
@@ -81,20 +95,23 @@ class IntakeUnavailable(Exception):
 
 
 class IntakeStore(Protocol):
-    # Persist one intake revision for a call.
     async def update(
-        self, call_id: str, operation_id: str, originating_number: str | None,
+        self,
+        call_id: str,
+        operation_id: str,
+        originating_number: str | None,
         request: UpdateIntake,
-    ) -> dict: ...
+    ) -> dict:
+        """Persist one intake revision for a call."""
+        ...
 
 
 class SupabaseIntakeStore:
-    # Keep the Supabase client used for intake writes.
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
 
-    # Save one intake revision and shape the result for the model.
     async def update(self, call_id, operation_id, originating_number, request):
+        """Save one intake revision and shape the result for the model."""
         try:
             response = await self.client.post(
                 "rpc/update_call_intake",
@@ -114,24 +131,45 @@ class SupabaseIntakeStore:
             response.raise_for_status()
             result = response.json()
             if not isinstance(result, dict) or result.get("status") not in {
-                "saved", "revision_conflict", "operation_conflict", "confirmation_mismatch"
+                "saved",
+                "revision_conflict",
+                "operation_conflict",
+                "confirmation_mismatch",
             }:
                 raise ValueError("Unexpected intake result")
             state = result["state"]
             details = state["details"]
-            result["state"] = {key: state[key] for key in ("call_id", "revision", "details", "triage")}
-            result.setdefault("missing_fields", [
-                key for key in ("caller_name", "issue_summary", "service_address", "service_unit", "service_zip", "service_city", "service_state")
-                if not details.get(key)
-            ])
+            result["state"] = {
+                key: state[key] for key in ("call_id", "revision", "details", "triage")
+            }
+            result.setdefault(
+                "missing_fields",
+                [
+                    key
+                    for key in (
+                        "caller_name",
+                        "issue_summary",
+                        "service_address",
+                        "service_unit",
+                        "service_zip",
+                        "service_city",
+                        "service_state",
+                    )
+                    if not details.get(key)
+                ],
+            )
             if details.get("property_type", "unknown") == "unknown":
                 result["missing_fields"].append("property_type")
             if not details.get("address_confirmed"):
                 result["missing_fields"].append("address_confirmation")
-            result.setdefault("eligibility", (
-                "out_of_scope" if details.get("property_type") == "commercial"
-                else "not_evaluated"
-            ))
+            result.setdefault(
+                "eligibility",
+                (
+                    "out_of_scope"
+                    if details.get("property_type") == "commercial"
+                    else "not_evaluated"
+                ),
+            )
             if "readiness" in result:
                 result["missing_fields"] = result["readiness"]["missing_fields"]
                 result["eligibility"] = result["readiness"]["scope"]
@@ -153,7 +191,8 @@ class SupabaseIntakeStore:
         readiness = result.get("readiness", {})
         if not (
             result["status"] == "saved"
-            and state["triage"].get("level") == "routine"
+            # Priority callers are often plan members; the lookup is bounded and never blocks.
+            and state["triage"].get("level") in ("routine", "priority")
             and readiness.get("scope") == "eligible"
             and readiness.get("coverage") == "covered"
             and details.get("address_confirmed") is True
@@ -168,11 +207,14 @@ class SupabaseIntakeStore:
             # The resolver validates revision under a lock, including corrections
             # arriving between the save and this request.
             async with asyncio.timeout(MEMBERSHIP_TIMEOUT_SECONDS):
-                result["membership"] = await SupabaseMembershipStore(self.client).resolve(
+                result["membership"] = await SupabaseMembershipStore(
+                    self.client
+                ).resolve(
                     call_id, ResolveMembership(expected_revision=state["revision"])
                 )
         except (TimeoutError, MembershipUnavailable):
             result["membership"] = {
-                "status": "lookup_unavailable", "membership_status": "unknown",
+                "status": "lookup_unavailable",
+                "membership_status": "unknown",
                 "verification_required": True,
             }
