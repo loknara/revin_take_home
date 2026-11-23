@@ -1,0 +1,57 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "prepare_confirmation",
+    "description": "After booking, record the caller choice of SMS, email, or no confirmation. SMS uses only the booked confirmed callback. Email must be supplied by caller. Returns recipient and confirmation_token. Does NOT send. For email read back the returned address and wait for explicit confirmation.",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "sms",
+            "email",
+            "none"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "caller_quote": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Caller Quote",
+          "type": "string"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "maxLength": 254,
+              "minLength": 3,
+              "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Email"
+        }
+      },
+      "required": [
+        "channel",
+        "caller_quote"
+      ],
+      "title": "PrepareConfirmation",
+      "type": "object"
+    }
+  },
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "",
+      "blocking": false
+    }
+  ]
+}

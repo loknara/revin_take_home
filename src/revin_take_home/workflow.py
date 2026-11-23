@@ -5,7 +5,8 @@ import logging
 from typing import Annotated, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from .notifications import sender_ready
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +42,27 @@ class FollowupRequest(RevisionRequest):
     caller_quote: str = Field(min_length=1,max_length=1000,pattern=r"\S")
 
 
+class PrepareConfirmation(EmptyRequest):
+    channel: Literal['sms','email','none']
+    caller_quote: str = Field(min_length=1,max_length=1000,pattern=r"\S")
+    email: str | None = Field(default=None,min_length=3,max_length=254,pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+    @model_validator(mode='after')
+    def email_matches_channel(self):
+        if (self.channel == 'email') != (self.email is not None):
+            raise ValueError('Supply an email only for the email channel')
+        return self
+
+
+class ConfirmNotification(EmptyRequest):
+    confirmation_token: Identifier
+    decision: Literal['accepted','declined']
+    caller_quote: str = Field(min_length=1,max_length=1000,pattern=r"\S")
+
+
 WORKFLOW_SCHEMAS = {
+    'prepare_confirmation': PrepareConfirmation, 'confirm_notification': ConfirmNotification,
+    'get_confirmation_status': EmptyRequest,
     'refresh_context': EmptyRequest,
     'search_slots': RevisionRequest, 'propose_booking': ProposeBooking,
     'confirm_booking': ConfirmBooking, 'get_booking_status': EmptyRequest,
@@ -73,6 +94,13 @@ class WorkflowStore:
     async def execute(self, name, call_id, operation_id, request):
         payload = {'p_call_id': call_id, **{'p_'+k: v for k,v in request.model_dump(mode='json').items()}}
         if name == 'report_gas_emergency':payload['p_operation_id']=operation_id
+        if name == 'confirm_notification':
+            current = await self.rpc('get_confirmation_status', {'p_call_id': call_id})
+            if not isinstance(current, dict) or not isinstance(current.get('notifications'), list):
+                raise WorkflowUnavailable
+            match = next((n for n in current['notifications']
+                          if isinstance(n, dict) and n.get('confirmation_token') == request.confirmation_token), {})
+            payload['p_sender_ready'] = sender_ready(match.get('channel'))
         result = await self.rpc(RPC_NAMES.get(name, name), payload)
         if not isinstance(result, dict) or 'status' not in result:
             raise WorkflowUnavailable

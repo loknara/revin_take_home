@@ -19,6 +19,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, SecretStr, ValidationError, model_validator
 
 from .weather import WeatherWorker, stop_worker
+from .notifications import NotificationSender, NotificationWorker
 from .audit import AuditStore, config_fingerprint
 from .workflow import WorkflowStore, WorkflowUnavailable, WORKFLOW_SCHEMAS
 from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_context, normalize_number
@@ -170,15 +171,24 @@ def create_app(
     async def lifespan(app: FastAPI):
         weather_client = None
         weather_task = None
+        notification_client = None
+        notification_task = None
         if db_client is not None:
             weather_client = httpx.AsyncClient(timeout=8, headers={
                 'User-Agent': 'SummitAirServiceCoordinator (https://github.com/loknara/revin_take_home)',
                 'Accept': 'application/geo+json',
             })
             weather_task = asyncio.create_task(WeatherWorker(db_client, weather_client).run())
+            notification_client = httpx.AsyncClient(timeout=8)
+            notification_task = asyncio.create_task(NotificationWorker(
+                db_client, NotificationSender(notification_client)).run())
         try:
             yield
         finally:
+            if notification_task is not None:
+                await stop_worker(notification_task)
+            if notification_client is not None:
+                await notification_client.aclose()
             if weather_task is not None:
                 await stop_worker(weather_task)
             if weather_client is not None:

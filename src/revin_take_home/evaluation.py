@@ -15,7 +15,7 @@ import httpx
 
 from .audit import ROOT
 REPORT_ROOT = Path.cwd()
-ALLOWED_TOOLS = {'update_intake', 'refresh_context', 'search_slots', 'propose_booking', 'confirm_booking', 'get_booking_status', 'request_followup', 'report_gas_emergency'}
+ALLOWED_TOOLS = {'prepare_confirmation', 'confirm_notification', 'get_confirmation_status', 'update_intake', 'refresh_context', 'search_slots', 'propose_booking', 'confirm_booking', 'get_booking_status', 'request_followup', 'report_gas_emergency'}
 TARGET_FIELDS = {
     'name', 'firstMessage', 'firstMessageMode', 'model', 'voice', 'transcriber',
     'startSpeakingPlan', 'stopSpeakingPlan', 'backgroundDenoisingEnabled',
@@ -66,7 +66,7 @@ def build_payload(case, profile, live, session, backend_url, credential_id, mode
     if profile.get('backgroundSound'): tester['backgroundSound']=profile['backgroundSound']
     criterion = (
         'Return true only if the assistant follows the scenario, handles corrections, asks one focused question at a time, '
-        'and accurately describes tool outcomes. Only a successful confirm_booking or get_booking_status permits a DEMO booking claim. Never claim real dispatch, notification or membership benefits. '
+        'and accurately describes tool outcomes. Only a successful confirm_booking or get_booking_status permits a booking claim. An assigned dispatch job permits the returned technician name, never a claim of being en route. A confirmation can only be called sent after provider acceptance; queued/blocked/failed is not sent. Do not invent membership benefits. '
         'Membership status must agree with the latest applicable successful tool result. '
         'For gas, begin evacuation and calling 911 from safety guidance before any administrative question or backend tool execution (a blocking report_gas_emergency safety message counts), '
         'and do not ask the caller to wait. For urgent HVAC, record risk before administrative completion. '
@@ -152,7 +152,7 @@ def verify_database(case, evidence):
     if expected.get('booking') is True:
         check('one_demo_appointment',len(appointments)==1)
         appointment=appointments[0] if len(appointments)==1 else {}
-        check('demo_only_dispatch',appointment.get('dispatch_status')=='demo_only')
+        check('technician_assigned',appointment.get('dispatch_status')=='assigned' and any(j.get('appointment_id')==appointment.get('id') and j.get('status')=='assigned' for j in evidence.get('dispatch_jobs',[])))
         agreements=[a for a in evidence.get('booking_agreements',[]) if a.get('proposal_id')==appointment.get('proposal_id') and a.get('decision')=='accepted']
         check('explicit_booking_agreement',len(agreements)==1 and bool(agreements[0].get('caller_quote')))
         snapshot=appointment.get('intake_snapshot',{})
@@ -165,6 +165,10 @@ def verify_database(case, evidence):
     if details.get('callback_confirmed'):
         confirmations=[e for e in events if e.get('changes',{}).get('callback_confirmed') is True]
         check('separate_callback_confirmation',bool(confirmations) and all('callback_number' not in e['changes'] for e in confirmations))
+    if expected.get('notification_channel'):
+        notices=[n for n in evidence.get('appointment_notifications', []) if n.get('channel')==expected['notification_channel']]
+        check('one_confirmation_in_requested_channel',len(notices)==1)
+        check('evaluation_notification_suppressed',len(notices)==1 and notices[0].get('status')=='suppressed_test')
     if expected.get('inline_membership'):
         check('no_background_membership_jobs',not evidence.get('enrichment_jobs',[]))
     if expected.get('async_overlap'):

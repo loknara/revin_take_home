@@ -82,6 +82,8 @@ class SupabaseEvaluationStore:
             'booking_proposals': 'id,slot_id,material_revision,intake_snapshot,status,created_at,expires_at',
             'booking_agreements': 'proposal_id,intake_revision,caller_quote,decision,source,created_at',
             'appointments': 'id,proposal_id,slot_id,intake_snapshot,status,dispatch_status,created_at',
+            'dispatch_jobs': 'appointment_id,technician_id,starts_at,ends_at,priority,status,assigned_at',
+            'appointment_notifications': 'appointment_id,channel,status,provider_name,created_at,updated_at',
             'followup_requests': 'id,reasons,status,notification_status,created_at',
             'tool_audit': 'operation_id,tool_name,result_status,elapsed_ms,created_at,config_version',
             'call_audit': 'config,ended_reason,final_disposition',

@@ -1,0 +1,21 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "get_confirmation_status",
+    "description": "Check saved confirmation status after an uncertain send result. Never retry by creating another message. delivered alone means confirmed delivery; submitted means provider accepted it; blocked_unconfigured/failed/delivery_unknown do not mean sent.",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "EmptyRequest",
+      "type": "object"
+    }
+  },
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "",
+      "blocking": false
+    }
+  ]
+}

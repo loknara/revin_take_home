@@ -1,0 +1,47 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "confirm_notification",
+    "description": "Queue one appointment confirmation only after caller agrees to that exact prepared recipient/channel. Use the latest confirmation_token. SMS choice to the already confirmed callback can be consent; email requires a separate readback/yes. Queued or submitted is not delivered. blocked_unconfigured means delivery is not available. Booking remains valid.",
+    "parameters": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation_token": {
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+          "title": "Confirmation Token",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "accepted",
+            "declined"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "caller_quote": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Caller Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "confirmation_token",
+        "decision",
+        "caller_quote"
+      ],
+      "title": "ConfirmNotification",
+      "type": "object"
+    }
+  },
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "",
+      "blocking": false
+    }
+  ]
+}
