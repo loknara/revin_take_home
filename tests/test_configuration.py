@@ -37,7 +37,8 @@ def test_activation_deploys_versioned_voice_settings():
     for section in settings.keys() - {"model"}:
         assert patch[section] == settings[section]
     assert patch["voice"]["chunkPlan"]["minCharacters"] >= 30
-    assert patch["transcriber"]["maxEndpointDelayMs"] > 500
+    # Endpointing stays versioned with the rest (the values are tuned by voice A/B tests).
+    assert {"endpointSensitivity", "maxEndpointDelayMs"} <= set(patch["transcriber"])
     # Readback tolerates provider defaults but not changed values.
     assert contains({"a": 1, "b": {"c": 2, "d": 3}}, {"b": {"c": 2}})
     assert not contains({"b": {"c": 4}}, {"b": {"c": 2}})
