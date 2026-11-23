@@ -1,0 +1,36 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "find_my_appointment",
+    "description": "Look up the caller's upcoming visits booked from the number they're calling from (never another number). Use when a caller wants to move, cancel or check an existing visit. found: appointments (newest first) with spoken window, service_address, service_unit and appointment_id; read the first back (\"I see your visit on [spoken] at [short address]. Is that the one?\") and act only on a yes. none_found or no_caller_id: offer a callback (request_followup with reason booking_change). Does not change anything.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    }
+  },
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "",
+      "blocking": false
+    },
+    {
+      "type": "request-response-delayed",
+      "timingMilliseconds": 1500,
+      "contents": [
+        {
+          "type": "text",
+          "language": "en",
+          "text": "I'm still checking on that."
+        },
+        {
+          "type": "text",
+          "language": "es",
+          "text": "Sigo verificando eso."
+        }
+      ]
+    }
+  ]
+}

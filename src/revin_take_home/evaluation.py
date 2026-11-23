@@ -29,6 +29,8 @@ ALLOWED_TOOLS = {
     "get_booking_status",
     "request_followup",
     "report_safety_emergency",
+    "find_my_appointment",
+    "change_appointment",
 }
 TARGET_FIELDS = {
     "name",
