@@ -56,11 +56,13 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def check_supabase_config(self):
-        """Require both Supabase settings together, and HTTPS when a URL is set."""
+        """Require both Supabase settings together, and HTTPS unless it is a local stack."""
         if bool(self.supabase_url) != bool(self.supabase_secret_key):
             raise ValueError("Set both SUPABASE_URL and SUPABASE_SECRET_KEY")
-        if self.supabase_url and not self.supabase_url.startswith("https://"):
-            raise ValueError("SUPABASE_URL must use HTTPS")
+        if self.supabase_url and not self.supabase_url.startswith(
+            ("https://", "http://127.0.0.1:", "http://localhost:")
+        ):
+            raise ValueError("SUPABASE_URL must use HTTPS (plain HTTP only for a local stack)")
         return self
 
     @classmethod

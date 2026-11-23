@@ -181,3 +181,30 @@ def test_unconfigured_database_returns_generic_intake_not_hardcoded_customers():
 def test_incomplete_database_config_fails_at_startup(config):
     with pytest.raises(ValidationError):
         Settings(assistant_id=ASSISTANT_ID, webhook_secret=SECRET, **config)
+
+
+@pytest.mark.parametrize(
+    "url, ok",
+    [
+        ("https://abc.supabase.co", True),
+        ("http://127.0.0.1:54321", True),
+        ("http://localhost:54321", True),
+        ("http://abc.supabase.co", False),
+        ("http://127.0.0.1.evil.example", False),
+    ],
+)
+def test_supabase_url_requires_https_except_local_stack(url, ok):
+    """Plain HTTP is only for a local Supabase stack on this machine."""
+    from revin_take_home.app import Settings
+
+    args = dict(
+        assistant_id="00000000-0000-4000-8000-000000000000",
+        webhook_secret="s" * 32,
+        supabase_url=url,
+        supabase_secret_key="k",
+    )
+    if ok:
+        Settings(**args)
+    else:
+        with pytest.raises(ValueError):
+            Settings(**args)
