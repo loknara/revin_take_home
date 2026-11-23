@@ -42,6 +42,9 @@ class SafetyEmergency(EmptyRequest):
         "electrical_sparking",
     ]
     caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
+    # The model habitually sends the revision it uses for every other tool. An emergency
+    # must never be rejected over it, so accept it and drop it before the database call.
+    expected_revision: int | None = Field(default=None, exclude=True)
 
 
 class FollowupRequest(RevisionRequest):

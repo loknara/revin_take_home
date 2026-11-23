@@ -222,3 +222,11 @@ def test_end_of_call_report_without_artifact_is_unchanged():
         "/vapi/events", json=body, headers={"Authorization": "Bearer " + SECRET}
     )
     assert response.status_code == 200 and store.calls == []
+
+
+def test_emergency_request_accepts_and_drops_a_stray_revision():
+    """A habitual expected_revision must never block an emergency save."""
+    from revin_take_home.workflow import SafetyEmergency
+
+    request = SafetyEmergency(hazard="gas_smell", caller_quote="I smell gas", expected_revision=0)
+    assert request.model_dump(mode="json") == {"hazard": "gas_smell", "caller_quote": "I smell gas"}
