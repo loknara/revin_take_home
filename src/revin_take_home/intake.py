@@ -39,6 +39,7 @@ class IntakeChanges(BaseModel):
     cooling_unavailable: RiskFact | None = None
     cold_conditions_reported: RiskFact | None = None
     vulnerable_resident: RiskFact | None = None
+    unsafe_to_wait: RiskFact | None = None
     gas_smell_reported: RiskFact | None = None
 
     @model_validator(mode="after")

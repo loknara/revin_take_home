@@ -2,7 +2,7 @@
 
 `./scripts/go` runs offline tests and prints the conversation-test plan. It does not start chat, voice, or telephone calls. The current instruction is **setup only: do not run paid tests until the user explicitly authorizes a batch**.
 
-This harness targets the implemented intake, urgency and membership milestone. Booking, geographic coverage and asynchronous conversation overlap remain future features, not passing test cases.
+This harness covers intake, urgency, membership, demo coverage and booking. Membership now returns inline with intake saves; background conversation overlap is no longer part of the normal flow.
 
 ## Commands
 
@@ -29,7 +29,7 @@ Then rerun selected successful chat scenarios in voice mode. `--case` and `--pro
 1. Run deterministic backend/unit tests.
 2. Wait for the deployed evaluation API and inspect the current model, voice, transcriber and tool credentials.
 3. Create a fresh authenticated synthetic session for one conversation. The session supplies fixture identity, not the simulated caller or language model.
-4. Compile a transient Vapi target using the versioned local prompt/tool schemas and current voice configuration. Experimental changes never patch the live phone assistant. Only intake and membership tools are allowed; both point to the isolated evaluation session route.
+4. Compile a transient Vapi target using the versioned local prompt/tool schemas and current voice configuration. Experimental changes never patch the live phone assistant. Only the active workflow tools are allowed; they point to the isolated evaluation session route.
 5. Run an AI caller over `vapi.webchat` or `vapi.websocket`. Scenario facts and caller personality are separate. The caller can end the conversation; no real telephone number is dialed.
 6. Fetch provider evaluations, transcript/recording references and the exact session's Supabase evidence. Require both conversation judgment and deterministic database assertions. Empty, skipped or unavailable evidence cannot pass.
 7. Save JSON and HTML reports under ignored `eval-results/`, close the session, and stop on failure. Closed/expired sessions reject further writes. Test records use `eval_<session UUID>` and remain available for diagnosis; they are never real customer appointments.
@@ -74,7 +74,7 @@ No paid run has been performed during harness setup. Live simulator payload deli
 
 ## Completed workflow coverage
 
-The suite now includes routine bookings, corrected addresses/units, property-specific membership, differing callbacks, commercial/non-HVAC/out-of-area rejection, landlord intake, declined offers, manipulation attempts and gas emerging during booking. `delayed_membership_booking` introduces an authenticated, session-scoped eight-second delay; it checks that the callback was saved during the lookup and that a usable membership result actually reached the model. Failed trials remain failed in their reports, even if later code fixes them.
+The suite now includes routine bookings, corrected addresses/units, property-specific membership, differing callbacks, commercial/non-HVAC/out-of-area rejection, landlord intake, declined offers, manipulation attempts and gas emerging during booking. `inline_membership_booking` checks that membership reaches the model through the intake response without creating background jobs. Lookup timeout/failure behavior is covered by deterministic backend tests. The earlier artificially delayed background scenario and its historical reports are not evidence for the current inline flow. Failed trials remain failed in their reports, even if later code fixes them.
 
 Backend transaction checks separately cover last-place races, expired/stale offers, corrections that return to their original value, idempotent replay after a lost response, post-commit correction/hangup, unknown storage outcomes, worker lease recovery, expired reads and stale property results. These checks are deterministic; conversation assertions also inspect tool ordering and the actual persisted appointment/agreement. A provider judge passing is insufficient.
 

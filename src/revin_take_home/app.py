@@ -4,7 +4,9 @@ Run: uv run --env-file .env uvicorn revin_take_home.app:create_app --factory
 Contract: https://docs.vapi.ai/api-reference/webhooks/server-message
 """
 
+import asyncio
 import json
+import httpx
 import os
 import secrets
 import time
@@ -16,6 +18,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, SecretStr, ValidationError, model_validator
 
+from .weather import WeatherWorker, stop_worker
 from .audit import AuditStore, config_fingerprint
 from .workflow import WorkflowStore, WorkflowUnavailable, WORKFLOW_SCHEMAS
 from .caller_context import CustomerDirectory, LookupUnavailable, bootstrap_context, normalize_number
@@ -163,15 +166,27 @@ def create_app(
         directory = UnconfiguredDirectory()
 
     @asynccontextmanager
-    # Membership runs within the intake request; no background worker is needed.
+    # Public weather is refreshed in the background; never on the voice request path.
     async def lifespan(app: FastAPI):
+        weather_client = None
+        weather_task = None
+        if db_client is not None:
+            weather_client = httpx.AsyncClient(timeout=8, headers={
+                'User-Agent': 'SummitAirServiceCoordinator (https://github.com/loknara/revin_take_home)',
+                'Accept': 'application/geo+json',
+            })
+            weather_task = asyncio.create_task(WeatherWorker(db_client, weather_client).run())
         try:
             yield
         finally:
+            if weather_task is not None:
+                await stop_worker(weather_task)
+            if weather_client is not None:
+                await weather_client.aclose()
             if db_client is not None:
                 await db_client.aclose()
 
-    app = FastAPI(title="Summit Air demo — caller lookup and intake", lifespan=lifespan)
+    app = FastAPI(title="Summit Air — caller lookup and intake", lifespan=lifespan)
     bearer = HTTPBearer(auto_error=False)
 
     # Reject requests whose bearer token does not match the webhook secret.

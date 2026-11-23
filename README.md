@@ -34,7 +34,7 @@ Use a Vapi inbound number with dynamic assistant selection: phone number `server
 
 The configured STT/model/TTS baseline is versioned in `config/voice-baseline.json`; provider aliases and automatic STT fallback can change the actual serving implementation, so retain provider call metadata when evaluating.
 
-Versioned prompt: `prompts/summit-air-system.txt`. Tool definitions: `tools/`. The active workflow uses update_intake, start_membership_check, refresh_context, search_slots, propose_booking, confirm_booking, get_booking_status request_followup and report_gas_emergency. `resolve_membership` remains available in the backend for compatibility but is not attached to the completed agent.
+Versioned prompt: `prompts/summit-air-system.txt`. Tool definitions: `tools/`. The active workflow uses update_intake, refresh_context, search_slots, propose_booking, confirm_booking, get_booking_status, request_followup and report_gas_emergency. Membership is returned in the intake response; refresh_context is for recovery, not routine membership polling. `resolve_membership` remains available in the backend for compatibility but is not attached to the completed agent.
 
 Use `python -m revin_take_home.configure_vapi` to inspect the deployment plan; `--apply --phone-id ID` requires a deployed matching backend and updates the existing assistant with newly created versioned tools. It preserves STT/TTS/model settings, saves a private rollback snapshot, installs an authenticated end-of-call report endpoint, and configures a provider-hosted message for assistant-request failures. It starts no calls. See the command's `--help` for rollback.
 
@@ -49,7 +49,8 @@ Render Free can sleep. An assistant-request cold start can exceed Vapi's fixed d
 - Membership is property-specific, cached for at most five minutes and through the current New York date. No plan benefits or prices are configured. Unknown membership does not block an otherwise eligible routine appointment.
 - Full confirmed address, confirmed callback, contact name, residential HVAC job and routine risk assessment are booking prerequisites. Equipment/access details are optional.
 - Proposals expire after two minutes. A separate caller acceptance is required. Capacity and current material facts are rechecked atomically. Lost responses are reconciled with get_booking_status; retries use the same proposal. A hangup does not cancel a committed booking.
-- Background membership jobs persist in Supabase with a 15-second deadline, recoverable five-second leases and a maximum of two attempts. The web process supervises the worker; jobs can time out while Free hosting sleeps. Late/corrected results are discarded, not treated as nonmembership.
+- Once the name and eligible address are confirmed for routine service, intake commits first, then checks property-specific membership within a one-second wall-clock budget. A timeout returns unknown membership without undoing intake or blocking booking. Fresh matching results are reused; corrections invalidate the cache. The active app no longer starts a membership worker or exposes start_membership_check. Legacy job tables/functions remain for historical evidence and compatibility tests.
+- Deploy the inline membership change in order: apply `20261122000100_inline_membership_lookup.sql`, deploy the backend, then apply the versioned Vapi configuration. A code push alone does not migrate Supabase or update Vapi. The migration removes automatic job creation; the backend performs the bounded lookup and includes its result in the same tool response.
 
 ## Testing and evidence
 
@@ -72,3 +73,40 @@ Use the call ID to inspect `call_intakes`, `intake_events`, `enrichment_jobs`, `
 If booking confirmation times out, inspect get_booking_status for that exact call before retrying. Do not delete a booking to fix a transcript. Corrected facts after booking create a change request; automatic cancellation/rescheduling is not implemented. No customer communication is sent by the backend.
 
 Before a real rollout, obtain actual service areas, hours, capacity, benefits, urgent routing and staffed fallback from the customer; connect real scheduling/dispatch, establish retention/access policy, use always-on hosting, run the release evaluation set, and pilot with human oversight. Optional geocoding/weather enrichment and a custom voice runtime remain deferred.
+
+### Contact reuse and weather urgency
+
+The intake save can prefill an **unconfirmed** callback from authenticated caller ID.
+A supplied name must match a unique phone-linked customer before the backend returns
+that customer's primary (or only) service address. A shared/ambiguous match returns no
+address. The caller confirms the property before membership is resolved and confirms
+the callback separately. Caller corrections win; no permanent phone link is created.
+`contact_prefill_events` records provenance separately from caller quotations.
+
+NWS hourly forecasts and active alerts are fetched for representative points in New
+York, Kings and Queens counties at startup and every 15 minutes, outside the voice
+request path. Cache validity is 30 minutes; a forecast over six hours old, incomplete
+24-hour coverage, or an unavailable alert feed cannot become a mild-weather result.
+See the [NWS API documentation](https://www.weather.gov/documentation/services-web-api).
+This uses the existing configured territory; it does not expand the ZIP allowlist.
+
+`WEATHER_HOT_F=90` and `WEATHER_COLD_F=40` are configurable **dispatch policy defaults**,
+not medical safety boundaries. A matching outage plus threshold or heat/cold alert in
+the next 24 hours creates a priority record. Before a location is known, a regional
+trigger requires the condition across all three counties. Maintenance alone does not
+become urgent. Weather is rechecked before search/proposal/booking and on recovery;
+a changed decision invalidates the old revision. Per-call weather evidence is retained.
+This version does not assess conditions beyond the rolling 24-hour forecast horizon.
+
+There is no routine age/medical screening. Volunteered vulnerability, cold conditions,
+or an inability to safely wait still escalates. Missing/stale weather requires one
+neutral comfort/waiting question; uncertainty remains uncertainty. Outdoor conditions
+do not establish indoor safety. Gas handling remains the first action.
+
+The greeting and intake use normal service language. Synthetic reservations are still
+identified before commitment, and priority records do not claim dispatch/notification.
+Real scheduling and dispatch integrations remain necessary before customer production.
+
+Database tests support an isolated local `TEST_DATABASE_URL` with `RUN_DATABASE_TESTS=1`.
+The weather fixture tests require this isolated URL and roll back their changes. They
+must not target the hosted database. No provider simulation is needed for these tests.

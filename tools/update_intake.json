@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "update_intake",
-    "description": "Required after a caller provides or corrects intake facts, BEFORE the next question. Save initial job and confirmed caller name immediately, not only address details. Backend automatically queues membership after a complete eligible address and name are confirmed. Saves risk immediately. One tool at a time using the latest revision. For a suspected gas smell, use report_gas_emergency INSTEAD of this tool; it speaks immediate safety guidance before saving. Does not book or notify.",
+    "description": "Save newly supplied facts BEFORE the next question, even when most intake fields are missing. A clear AC outage must save cooling_unavailable=true, service_type=repair, service_category=hvac and issue_summary in the first update; a heat outage uses heating_unavailable=true. Save known vulnerability/cold in that same update. Do not wait for an address. One sequential tool using the latest revision. Save values first, confirm in a later update. A bounded membership result may accompany a save; it never blocks repair booking. For current suspected gas, use report_gas_emergency FIRST instead. This tool does not book, dispatch or notify. The backend automatically prefills an unconfirmed callback from authenticated caller ID and, after a unique name/phone match, an unconfirmed saved service address. Use returned details; confirm instead of asking again. Weather-based triage is automatic; never fabricate weather fields.",
     "parameters": {
       "type": "object",
       "additionalProperties": false,
@@ -119,12 +119,12 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 50,
-              "description": "Caller-supplied apartment/unit. Save none only if the caller explicitly says there is no unit; do not infer it from silence."
+              "description": "Caller-supplied unit. An explicit no-unit answer, \"just a house\" or \"single-family home\" supports none; do not ask again. Residential alone does not establish the unit. Ask for a missing apartment unit once."
             },
             "service_zip": {
               "type": "string",
               "pattern": "^[0-9]{5}$",
-              "description": "Five-digit ZIP supplied by the caller; never infer from caller ID or a candidate account."
+              "description": "Five-digit ZIP supplied by caller or returned in the server-prefilled address; do not infer from caller ID."
             },
             "membership_claim": {
               "type": [
@@ -183,7 +183,7 @@
             "callback_number": {
               "type": "string",
               "pattern": "^\\+[1-9][0-9]{7,14}$",
-              "description": "Caller-provided callback in E.164. Separate from caller ID and account phone. Ask rather than guess."
+              "description": "Callback in E.164. Prefer the already saved provider-originating number: ask whether the number they are calling from is best, then confirm the exact saved number. Never guess or update an account phone."
             },
             "callback_confirmed": {
               "type": "boolean",
@@ -193,6 +193,18 @@
               "type": "string",
               "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
               "description": "Requested date in America/New_York; ask to clarify ambiguous dates."
+            },
+            "unsafe_to_wait": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "enum": [
+                true,
+                false,
+                "unknown"
+              ],
+              "description": "Caller says indoor conditions or a safety/health concern mean they cannot safely wait. A scheduling preference alone is not unsafe. False only for an explicit answer that they can manage; omit if not discussed. No routine age/medical screening."
             }
           },
           "description": "Only changed facts. Omit unchanged or undiscussed fields; use unknown for explicitly uncertain risk facts. Do not send nulls."

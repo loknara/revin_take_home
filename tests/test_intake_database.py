@@ -21,12 +21,12 @@ def database():
     psycopg = pytest.importorskip("psycopg")
     from psycopg.types.json import Jsonb
 
-    url = Path("supabase/.temp/pooler-url").read_text().strip()
+    url = (os.environ.get('TEST_DATABASE_URL') or Path("supabase/.temp/pooler-url").read_text().strip())
     call_id = "test_intake_" + uuid4().hex
 
     def connect():
-        return psycopg.connect(url, password=os.environ["SUPABASE_DB_PASSWORD"],
-                               sslmode="require", connect_timeout=15, autocommit=True)
+        return psycopg.connect(url, password=os.environ.get('SUPABASE_DB_PASSWORD', ''),
+                               sslmode='disable' if os.environ.get('TEST_DATABASE_URL') else 'require', connect_timeout=15, autocommit=True)
 
     def update(op, revision, patch, quote="Caller said this", confirmation=None):
         with connect() as db:
@@ -89,11 +89,11 @@ def test_late_retry_returns_current_state_without_reverting_it(database):
     ({"service_type": "maintenance", "gas_smell_reported": True}, "emergency", "gas_smell"),
     ({"heating_unavailable": True, "cold_conditions_reported": True}, "priority", "no_heat_cold"),
     ({"heating_unavailable": True}, "needs_assessment", None),
-    ({"heating_unavailable": True, "cold_conditions_reported": False}, "routine", None),
+    ({"heating_unavailable": True, "cold_conditions_reported": False, "unsafe_to_wait": False}, "routine", None),
     ({"cooling_unavailable": True, "vulnerable_resident": True}, "priority", "no_cooling_vulnerable"),
     ({"cooling_unavailable": True}, "needs_assessment", None),
     ({"cooling_unavailable": True, "vulnerable_resident": "unknown"}, "needs_assessment", None),
-    ({"cooling_unavailable": True, "vulnerable_resident": False}, "routine", None),
+    ({"cooling_unavailable": True, "vulnerable_resident": False, "unsafe_to_wait": False}, "routine", None),
     ({"service_type": "maintenance", "vulnerable_resident": True}, "routine", None),
 ])
 def test_triage_uses_reported_facts_and_unknown_is_not_false(database, facts, level, reason):
@@ -122,7 +122,7 @@ def test_priority_is_idempotent_and_escalates_without_new_case(database):
 
 def test_risk_correction_retains_case_for_human_review(database):
     first = database("risk", 0, {"cooling_unavailable": True, "vulnerable_resident": True})
-    corrected = database("correction", 1, {"vulnerable_resident": False})
+    corrected = database("correction", 1, {"vulnerable_resident": False, "unsafe_to_wait": False})
     assert corrected["state"]["triage"]["level"] == "routine"
     case = corrected["priority_request"]
     assert case["id"] == first["priority_request"]["id"]

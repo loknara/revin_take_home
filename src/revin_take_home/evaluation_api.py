@@ -25,14 +25,17 @@ class EvaluationSession(BaseModel):
     expires_at: datetime
     closed_at: datetime | None = None
 
+    # True while the session is unclosed and not past its expiry.
     def is_open(self):
         return self.closed_at is None and self.expires_at > datetime.now(timezone.utc)
 
 
 class SupabaseEvaluationStore:
+    # Keep the Supabase client used for evaluation sessions.
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
 
+    # Create a fixture session and optionally set its lookup delay.
     async def create(self, fixture_key, lookup_delay_ms=0):
         try:
             r = await self.client.post('rpc/create_evaluation_session', json={'p_fixture_key': fixture_key}, timeout=3)
@@ -45,6 +48,7 @@ class SupabaseEvaluationStore:
         except (httpx.HTTPError, ValueError) as exc:
             raise EvaluationUnavailable from exc
 
+    # Load one evaluation session by id.
     async def get(self, session_id):
         try:
             r = await self.client.get('evaluation_sessions', params={'id': 'eq.'+str(session_id), 'select': '*'}, timeout=3)
@@ -54,6 +58,7 @@ class SupabaseEvaluationStore:
         except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
             raise EvaluationUnavailable from exc
 
+    # Mark an evaluation session closed.
     async def close(self, session_id):
         try:
             r = await self.client.post('rpc/close_evaluation_session', json={'p_session_id': str(session_id)}, timeout=3)
@@ -67,6 +72,8 @@ class SupabaseEvaluationStore:
             raise EvaluationUnavailable
         queries = {
             'call_intakes': 'call_id,revision,details,triage',
+            'contact_prefill_events': 'intake_revision,source,location_id,fields,created_at',
+            'call_weather_evidence': 'intake_revision,weather,triage,created_at',
             'intake_events': 'operation_id,applied_revision,changes,caller_quote,created_at',
             'priority_requests': 'id,highest_level,current_level,status,notification_status,latest_intake_revision,needs_review,created_at',
             'call_membership_checks': 'intake_revision,input_snapshot,result,checked_at',

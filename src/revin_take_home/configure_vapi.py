@@ -14,25 +14,28 @@ from .audit import config_fingerprint
 from .evaluation import ALLOWED_TOOLS, ROOT
 
 FAILURE_MESSAGE = (
-    "Summit Air's demo assistant is temporarily unavailable. No service request has been saved. "
+    "Summit Air's virtual assistant is temporarily unavailable. No service request has been saved. "
     "Please try again later. If you smell gas, leave the area with everyone and call 911 once safely away."
 )
 
 
+# Write JSON with owner-only directory and file permissions.
 def private_json(path, value):
     path.parent.mkdir(parents=True,exist_ok=True);path.parent.chmod(0o700)
     path.write_text(json.dumps(value,indent=2));path.chmod(0o600)
 
 
+# Build the assistant patch that swaps in versioned tools and the system prompt.
 def assistant_patch(live, tool_ids, backend, credential):
     model=copy.deepcopy(live['model'])
     model['messages']=[{'role':'system','content':(ROOT/'prompts/summit-air-system.txt').read_text()}]
     model.pop('tools',None);model.pop('toolRefs',None);model['toolIds']=tool_ids
     return {'model':model,'server':{'url':backend+'/vapi/events','credentialId':credential,'timeoutSeconds':5},
             'serverMessages':['end-of-call-report'],
-            'firstMessage':"Hi, this is Summit Air's AI assistant for a demo. How can I help?"}
+            'firstMessage':"Thanks for calling Summit Air. I'm the virtual assistant. How can I help?"}
 
 
+# Return the id of an existing tool that matches the desired definition.
 def matching_tool(existing, desired):
     for tool in existing:
         if (tool.get('function')==desired['function'] and tool.get('async',False)==desired.get('async',False)
@@ -42,6 +45,7 @@ def matching_tool(existing, desired):
     return None
 
 
+# Plan, apply, or restore the Vapi assistant and phone configuration.
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--apply',action='store_true')

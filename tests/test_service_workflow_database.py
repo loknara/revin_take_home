@@ -12,9 +12,9 @@ pytestmark = pytest.mark.skipif(os.environ.get('RUN_DATABASE_TESTS') != '1', rea
 def workflow():
     psycopg = pytest.importorskip('psycopg')
     from psycopg.types.json import Jsonb
-    url = Path('supabase/.temp/pooler-url').read_text().strip()
+    url = (os.environ.get('TEST_DATABASE_URL') or Path('supabase/.temp/pooler-url').read_text().strip())
     def connect():
-        return psycopg.connect(url, password=os.environ['SUPABASE_DB_PASSWORD'], sslmode='require', connect_timeout=15, autocommit=True)
+        return psycopg.connect(url, password=os.environ.get('SUPABASE_DB_PASSWORD', ''), sslmode='disable' if os.environ.get('TEST_DATABASE_URL') else 'require', connect_timeout=15, autocommit=True)
     db = connect()
     calls = []
     scope = "test_workflow_"+uuid4().hex

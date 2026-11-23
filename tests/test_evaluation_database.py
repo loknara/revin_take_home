@@ -11,11 +11,12 @@ from revin_take_home.app import create_app
 pytestmark=pytest.mark.skipif(os.environ.get('RUN_DATABASE_TESTS')!='1',reason='Live database checks are opt-in')
 
 
+@pytest.mark.skipif(bool(os.environ.get('TEST_DATABASE_URL')), reason='Requires hosted PostgREST; isolated PostgreSQL has no HTTP gateway')
 def test_session_identity_real_tools_evidence_and_close():
     psycopg=pytest.importorskip('psycopg')
     session=None
-    with psycopg.connect(Path('supabase/.temp/pooler-url').read_text().strip(),password=os.environ['SUPABASE_DB_PASSWORD'],
-                          sslmode='require',connect_timeout=15,autocommit=True) as db:
+    with psycopg.connect((os.environ.get('TEST_DATABASE_URL') or Path('supabase/.temp/pooler-url').read_text().strip()),password=os.environ.get('SUPABASE_DB_PASSWORD', ''),
+                          sslmode='disable' if os.environ.get('TEST_DATABASE_URL') else 'require',connect_timeout=15,autocommit=True) as db:
         try:
             with TestClient(create_app()) as client:
                 headers={'Authorization':'Bearer '+os.environ['VAPI_WEBHOOK_SECRET']}
