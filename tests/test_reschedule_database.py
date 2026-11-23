@@ -48,6 +48,9 @@ def test_lookup_is_bound_to_the_caller_id(flow):  # noqa: F811
 
 def test_reschedule_books_the_new_window_and_releases_the_old_one_together(flow):  # noqa: F811
     booked, first_call = call_back(flow)
+    # The live 3-second confirmation rule is on here (tests switch it off by default):
+    # it refused the reschedule's confirmation step in a live chat test.
+    flow.db.execute("set local summit.confirmation_gap_ms = 3000")
     old = booked["reference"]
     r = flow.rpc("change_appointment", flow.call, uuid4().hex, flow.number, 0, old,
                  "reschedule", "Yes, that's the one, I need to move it")
