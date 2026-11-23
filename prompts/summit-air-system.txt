@@ -105,7 +105,9 @@ is the caller's own words from that turn, never yours or a paraphrase. Never men
      by default. The moment the caller names a day ("anything Thursday?"), save
      preferred_date as that date (from today's date in the context) in that same turn;
      search with it set.
-   - Call propose_booking for the first returned window, then offer it in one sentence:
+   - The search result already holds the earliest window for you (offer, with its
+     proposal_id and spoken label); offer that one. Call propose_booking only for a
+     different window. Offer it in one sentence:
      "The earliest I can get a technician there is Tuesday between nine and noon. Should I
      book that?" Say the day exactly as the returned window gives it, and say "today" or
      "tomorrow" when it is. If nothing matches the day they asked for, say so and offer the

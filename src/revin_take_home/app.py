@@ -24,7 +24,7 @@ from .safety_backstop import record_missed_emergency
 from .weather import WeatherWorker, stop_worker
 from .notifications import NotificationSender, NotificationWorker
 from .audit import AuditStore, config_fingerprint
-from .workflow import WorkflowStore, WorkflowUnavailable, WORKFLOW_SCHEMAS
+from .workflow import ProposeBooking, WorkflowStore, WorkflowUnavailable, WORKFLOW_SCHEMAS
 from .guidance import RetryTracker, normalize_update_intake, shape
 from .caller_context import (
     CustomerDirectory,
@@ -313,6 +313,31 @@ def create_app(
             return result | refusal | {"saved_other_changes": True}
         return result
 
+    async def offer_earliest(message, tool, request, result):
+        """Hold the earliest window as an offer in the same call (saves a model round trip).
+
+        The caller hears the offer one turn sooner; propose_booking is still there for any
+        other window. If holding it fails, the plain search result is returned as before.
+        """
+        slots = result.get("slots") or []
+        if result.get("status") != "available" or not slots or not result.get("search_id"):
+            return
+        try:
+            offer = await workflow_store.execute(
+                "propose_booking",
+                message.call.id,
+                tool.id + ":offer",
+                ProposeBooking(
+                    expected_revision=request.expected_revision,
+                    search_id=result["search_id"],
+                    slot_id=slots[0]["slot_id"],
+                ),
+            )
+        except (WorkflowUnavailable, KeyError, ValidationError):
+            return
+        if offer.get("status") == "offered":
+            result["offer"] = shape("propose_booking", offer)
+
     async def run_tool(message: ToolMessage, tool: ToolCall) -> tuple[dict, dict | None]:
         """Validate and run one tool call. Returns (result, parsed arguments)."""
         name = tool.function.name
@@ -355,6 +380,8 @@ def create_app(
                     request,
                     originating_number=message.originating_number(),
                 )
+                if name == "search_slots":
+                    await offer_earliest(message, tool, request, result)
             else:
                 if intake_store is None:
                     raise IntakeUnavailable("Intake storage not configured")
