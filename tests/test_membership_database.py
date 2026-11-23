@@ -126,6 +126,13 @@ def directory():
                     (prefix + "_other_location", other),
                 )
 
+            def followup_reasons(self):
+                row = db.execute(
+                    "select reasons from public.followup_requests where call_id=%s",
+                    (call_id,),
+                ).fetchone()
+                return row[0] if row else []
+
             def count_checks(self):
                 return db.execute(
                     "select count(*) from public.call_membership_checks where call_id=%s",
@@ -253,3 +260,33 @@ def test_hazard_and_commercial_do_not_trigger_administrative_resolution(
     directory.update(patch)
     r = directory.resolve()
     assert r["status"] == status and r["membership_status"] == "unknown"
+
+
+def test_unverified_plan_claim_records_one_followup_whichever_comes_first(directory):
+    """R11: claim before the lookup (the failing voice call) and claim after it."""
+    directory.update({"membership_claim": True})
+    assert directory.followup_reasons() == []  # nothing looked up yet
+    directory.ready()
+    directory.change_plan("expired")
+    directory.resolve()
+    assert directory.followup_reasons() == ["membership_verification"]
+    directory.update({"issue_summary": "annual tune-up"})
+    directory.resolve()
+    assert directory.followup_reasons() == ["membership_verification"]
+
+
+def test_active_plan_claim_needs_no_followup(directory):
+    directory.ready()
+    directory.change_plan("active")
+    directory.update({"membership_claim": True})
+    directory.resolve()
+    assert directory.followup_reasons() == []
+
+
+def test_claim_after_an_expired_lookup_records_the_followup(directory):
+    directory.ready()
+    directory.change_plan("expired")
+    directory.resolve()
+    assert directory.followup_reasons() == []
+    directory.update({"membership_claim": True})
+    assert directory.followup_reasons() == ["membership_verification"]
