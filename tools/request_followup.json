@@ -32,12 +32,17 @@
           "pattern": "\\S",
           "title": "Caller Quote",
           "type": "string"
+        },
+        "bot_say": {
+          "type": "string",
+          "description": "Spoken to the caller while this runs: one brief, natural acknowledgment (2-6 words) that fits this moment, e.g. \"Okay, passing that along\". Vary it from your last one. In the caller's current language. No trailing punctuation."
         }
       },
       "required": [
         "expected_revision",
         "reason",
-        "caller_quote"
+        "caller_quote",
+        "bot_say"
       ],
       "type": "object"
     }

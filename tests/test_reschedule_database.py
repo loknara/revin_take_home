@@ -96,3 +96,15 @@ def test_tables_are_not_exposed_to_clients(flow):  # noqa: F811
     for table in ("appointment_history", "appointment_changes"):
         assert count(flow, "select count(*) from information_schema.role_table_grants where table_name=%s "
                      "and grantee in ('anon','authenticated')", table) == 0
+
+
+def test_access_details_given_after_booking_reach_the_visit(flow):  # noqa: F811
+    booked, _ = book(flow)
+    flow.save({"access_notes": "Doorman building; dog, will be crated", "onsite_contact": "Sam (roommate), 917-555-0100"})
+    snapshot = flow.db.execute(
+        "select intake_snapshot from public.appointments where id=%s", (booked["reference"],)
+    ).fetchone()[0]
+    assert snapshot["access_notes"] == "Doorman building; dog, will be crated"
+    assert snapshot["onsite_contact"].startswith("Sam")
+    status = flow.rpc("get_booking_status", flow.call)
+    assert status["change_requires_followup"] is False

@@ -10,7 +10,8 @@
       "required": [
         "expected_revision",
         "caller_quote",
-        "changes"
+        "changes",
+        "bot_say"
       ],
       "properties": {
         "expected_revision": {
@@ -219,6 +220,10 @@
         "confirmation_callback": {
           "type": "string",
           "description": "Required when callback_confirmed is true: copy callback_number exactly from the latest saved state (or from expected.confirmation_callback in an error result)."
+        },
+        "bot_say": {
+          "type": "string",
+          "description": "Spoken to the caller while this runs: one brief, natural acknowledgment (2-6 words) that fits this moment, e.g. \"Okay, adding that in\", \"Got it\", \"Perfect, noting that\", \"Okay, one second\". Vary it from your last one. In the caller's current language. No trailing punctuation."
         }
       }
     }

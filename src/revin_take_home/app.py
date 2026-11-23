@@ -352,12 +352,15 @@ def create_app(
                 parsed = None
         else:
             parsed = arguments
+        # bot_say is Vapi's spoken filler; Vapi strips it, but an empty value (or the chat
+        # API) can pass it through, and the request models reject unknown fields.
+        spoken_filler = isinstance(parsed, dict) and parsed.pop("bot_say", None) is not None
         if name == "update_intake" and isinstance(parsed, dict):
             parsed, moved = normalize_update_intake(parsed)
         try:
             request = (
                 schema.model_validate_json(arguments)
-                if isinstance(arguments, str) and not moved
+                if isinstance(arguments, str) and not moved and not spoken_filler
                 else schema.model_validate(parsed)
             )
         except ValidationError as exc:
