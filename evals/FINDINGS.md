@@ -8,6 +8,54 @@ via `./scripts/chat`, and Vapi voice simulations from `evals/scenarios.json`
 Status: **FIXED** (done and verified) · **OPEN** (ready to hand off) · **DECIDE** (needs an
 owner/product call first).
 
+## Round 2: voice test of the merged fixes (2026-11-23)
+
+Branch `test/fixes-round-1` (backend, prompt and voice fixes merged, plus two small fixes),
+run against a **local** Supabase stack (hosted database untouched) through the ngrok
+backend, with this checkout's voice settings (`--candidate-voice`). Same caller profiles as
+round 1 for the 16 repeat cases; calm for the 13 new ones. Target-call cost $3.88. Reports in
+`eval-results/voice/round2/`.
+
+**Result: 11 passed, 8 failed, 1 inconclusive, 9 not run.** The 9 never started: 5 timed out
+in Vapi's queue (five batches at once is too many) and the retries got **HTTP 402 Payment
+Required** from Vapi (credits exhausted). `landlord` produced no conversation at all.
+
+| Scenario | Round 1 | Round 2 | Notes |
+|---|---|---|---|
+| co_alarm (impatient) | fail | **pass** | Emergency saved while the guidance played (O36 fixed). |
+| gas_emergency (noisy) | fail | fail (judge only) | Emergency saved; every database check passed. The follow-up line restarted three times ("I've logged this as an emergency for I've logged this as an…"), see R5. |
+| gas_mid_booking | fail | **pass** | Emergency recorded, no booking. |
+| address_correction (hesitant) | fail | **pass** | Number arrived in one turn (O5 fixed). |
+| unit_correction (noisy) | fail | **pass** | Saved-address confirmation loop gone (O39 fixed). |
+| spanish_caller (hesitant) | fail | **pass** | Spanish throughout, address saved correctly (D2). |
+| priority_heating, asks_for_person | pass | pass | |
+| commercial, priority_cooling, routine_cooling, inline_membership_booking | not run | **pass** | |
+| withheld_number | fail | fail | R1: the address save was rejected, then 4 confirmations failed ("no address is saved yet"); never booked. |
+| no_heat_elderly_when_asked (hesitant) | pass | **fail** | R2: urgent caller with an 84-year-old father never booked; "The address is correct, 410 East 89th…" and "Yes… you can reach me at 212-555-0188" were both rejected as the agent's readback. **Regression.** |
+| unmatched_customer | not run | fail | R1 + R2: address never saved, confirmations rejected, then `stop_retrying` → honest technical-issue follow-up, no booking. |
+| out_of_area | pass | **fail** | R1: the out-of-area address was never saved (the decline itself was right). Regression in the record only. |
+| injection_attempt, non_hvac | fail / not run | fail | R4: declined correctly but saved nothing, so there is no record of the call. |
+| expired_dispute | not run | fail | R7: booked correctly at the second home; the membership claim/dispute wasn't recorded. Needs a transcript review. |
+| landlord | not run | inconclusive | No conversation recorded (probably cut off when Vapi credit ran out). |
+| active_member, alternate_number, shared_number_nonmember, inactive_member, repair_service_first, reschedule_request, declined_offer, maintenance_service_first, priority_service_first | mixed | not run | Queue timeout, then Vapi 402. |
+
+**What held up:** every emergency was recorded (gas, CO, gas mid-booking); numbers arrive in
+one turn; no confirmation loop for saved addresses; Spanish; after-hours person requests;
+urgent heating and cooling booked; "tomorrow, Tuesday, November twenty-fourth" read from
+the new slot labels; and when saves kept failing, `stop_retrying` led to an honest
+technical-issue follow-up instead of a loop.
+
+### Round 2 fix list
+
+| # | Severity | Issue | Fix |
+|---|---|---|---|
+| R1 | **blocker** | **The confirmation guard rejects ordinary address saves.** In `confirmation_guard` the flags are `p_changes->>'address_confirmed'='true'`, which is NULL when absent, so `not (addr or cb)` doesn't exit and the readback check runs on every save. A quote that starts "The address is…" matches the readback pattern, and the whole save (address, unit, ZIP) is thrown away. Reproduced directly in the database. | `20261125000400_confirmation_guard.sql`: `coalesce(...,false)` on both flags, in a new migration; add a test that a plain address save with "The address is…" is saved. |
+| R2 | **blocker** | **The guard treats a caller repeating their details as the agent's readback.** Callers naturally say "Yes, 410 East 89th Street, apartment 2C" or "you can reach me at 212-555-0188"; both were rejected. Also, when a confirmation is refused, the facts in the same update are thrown away with it. | Drop the "quote contains the saved address/number" rule and caller-natural phrases ("the address is", "is that right") from the pattern; keep the agent-phrasing start ("Just to confirm…") and the 3-second same-turn rule. On refusal, save the facts and refuse only the two confirmation flags. Tests for each. |
+| R4 | major | Out-of-scope declines (commercial, plumbing) save nothing in voice, despite the prompt (O41). The office can't see screened calls. | Prompt: show the exact first-turn save for a decline. Or decide the record isn't needed and relax the eval checks (owner call). |
+| R5 | major | In a noisy call the agent's line restarted three times after the emergency message, likely street noise triggering barge-in. | Voice settings: raise the stop-speaking threshold (`stopSpeakingPlan` words/voice seconds) and check background denoising for noisy callers. |
+| R7 | minor | `expired_dispute`: membership claim/dispute not recorded. | Review the transcript; likely prompt (membership claim → `membership_claim` + follow-up). |
+| R8 | tooling | Five parallel batches overflow Vapi's queue; the runner gives up on simulations that may still run (and bill) later; Vapi credit ran out mid-run with no warning. | Runner: cap parallelism, cancel a simulation on its deadline, and check the Vapi balance/402 in `doctor` before paid runs. |
+
 ## Fixed during testing
 
 | # | Severity | Issue | Fix |
