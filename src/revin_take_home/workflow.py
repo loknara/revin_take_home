@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from .notifications import sender_ready
+from .notifications import sender_ready, delivery_mode
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +101,7 @@ class WorkflowStore:
             match = next((n for n in current['notifications']
                           if isinstance(n, dict) and n.get('confirmation_token') == request.confirmation_token), {})
             payload['p_sender_ready'] = sender_ready(match.get('channel'))
+            payload['p_stub'] = delivery_mode() == 'stub'
         result = await self.rpc(RPC_NAMES.get(name, name), payload)
         if not isinstance(result, dict) or 'status' not in result:
             raise WorkflowUnavailable

@@ -118,3 +118,12 @@ def test_different_recipient_cannot_replace_already_queued_email(flow):
     first=flow.rpc('prepare_confirmation',flow.call,'email','Email please','first@example.com')
     flow.rpc('confirm_notification',flow.call,first['confirmation_token'],'accepted','Yes',True)
     assert flow.rpc('prepare_confirmation',flow.call,'email','Change it','other@example.com')['status']=='recipient_change_requires_review'
+
+
+def test_explicit_stub_saves_receipt_without_queuing_delivery(flow):
+    book(flow)
+    n=flow.rpc('prepare_confirmation',flow.call,'sms','Text please')
+    r=flow.rpc('confirm_notification',flow.call,n['confirmation_token'],'accepted','Yes',True,True)
+    assert r['status']=='simulated' and r['external_message_sent'] is False
+    assert flow.rpc('claim_appointment_notification') is None
+    assert flow.rpc('get_confirmation_status',flow.call)['notifications'][0]['status']=='simulated'

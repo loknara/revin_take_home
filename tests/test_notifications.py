@@ -12,6 +12,7 @@ from revin_take_home.notifications import NotificationSender,message_text,sender
 
 @pytest.fixture
 def configured(monkeypatch):
+    monkeypatch.setenv('CONFIRMATION_DELIVERY_MODE','live')
     for key,value in {'TWILIO_ACCOUNT_SID':'AC'+'a'*32,'TWILIO_AUTH_TOKEN':'fake-only',
         'TWILIO_FROM_NUMBER':'+12125550100','RESEND_API_KEY':'fake-only','CONFIRMATION_FROM_EMAIL':'test@example.com'}.items():
         monkeypatch.setenv(key,value)
@@ -33,6 +34,7 @@ def run_send(item,handler):
 
 
 def test_no_credentials_is_blocked_without_network(monkeypatch):
+    monkeypatch.setenv('CONFIRMATION_DELIVERY_MODE','live')
     monkeypatch.delenv('TWILIO_ACCOUNT_SID',raising=False)
     def never(_):raise AssertionError('Must not call provider')
     assert run_send(job(),never)['status']=='blocked_unconfigured'
@@ -125,3 +127,10 @@ def test_workflow_derives_sender_readiness_from_saved_channel(monkeypatch):
                 ConfirmNotification(confirmation_token=token,decision='accepted',caller_quote='Yes'))
     assert asyncio.run(run())['status']=='blocked_unconfigured'
     assert len(seen)==2
+
+
+def test_stub_mode_never_contacts_provider_even_with_credentials(configured,monkeypatch):
+    monkeypatch.setenv('CONFIRMATION_DELIVERY_MODE','stub')
+    def never(_):raise AssertionError('Stub cannot contact provider')
+    assert not sender_ready('sms') and not sender_ready('email')
+    assert run_send(job(),never)['error']=='stub_mode_no_external_delivery'

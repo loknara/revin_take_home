@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import httpx
+from .notifications import delivery_mode
 
 log=logging.getLogger(__name__)
 ROOT=Path(__file__).resolve().parents[2]
@@ -21,7 +22,7 @@ def config_fingerprint():
         if path.exists():digest.update(path.name.encode()+b'\0'+path.read_bytes())
     return {'prompt_tools_sha256':digest.hexdigest(),'backend_commit':os.getenv('RENDER_GIT_COMMIT','local'),
             'configured_pipeline':json.loads((ROOT/'config/voice-baseline.json').read_text()),
-            'policy_version':'weather-v1','weather_thresholds_f':{'hot':os.getenv('WEATHER_HOT_F','90'),'cold':os.getenv('WEATHER_COLD_F','40')},'runtime':'vapi-cascade','timezone':'America/New_York'}
+            'confirmation_delivery_mode':delivery_mode(),'policy_version':'weather-v1','weather_thresholds_f':{'hot':os.getenv('WEATHER_HOT_F','90'),'cold':os.getenv('WEATHER_COLD_F','40')},'runtime':'vapi-cascade','timezone':'America/New_York'}
 
 
 class AuditStore:

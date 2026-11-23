@@ -13,7 +13,13 @@ import httpx
 log = logging.getLogger(__name__)
 
 
+def delivery_mode():
+    # Sending requires explicit opt-in as well as credentials. Unknown values fail closed.
+    return 'live' if os.getenv('CONFIRMATION_DELIVERY_MODE', 'stub') == 'live' else 'stub'
+
+
 def sender_ready(channel):
+    if delivery_mode() != 'live': return False
     required = {'sms': ('TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'),
                 'email': ('RESEND_API_KEY', 'CONFIRMATION_FROM_EMAIL')}
     return channel in required and all(os.getenv(k) for k in required[channel])
@@ -41,6 +47,8 @@ class NotificationSender:
 
     async def send(self, job):
         channel = job['channel']
+        if delivery_mode() == 'stub':
+            return {'status': 'blocked_unconfigured', 'error': 'stub_mode_no_external_delivery'}
         if not sender_ready(channel):
             return {'status': 'blocked_unconfigured', 'error': 'sender_not_configured'}
         # Defense in depth: evaluation fixtures must never reach a provider.
@@ -84,6 +92,8 @@ class NotificationSender:
         return 'submitted'
 
     async def poll(self, job):
+        if delivery_mode() == 'stub':
+            return {'status': 'delivery_unknown', 'error': 'stub_mode_no_external_delivery'}
         if not sender_ready(job['channel']):
             return {'status': 'delivery_unknown', 'error': 'sender_unavailable_for_status'}
         try:

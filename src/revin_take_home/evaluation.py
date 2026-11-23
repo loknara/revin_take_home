@@ -168,7 +168,7 @@ def verify_database(case, evidence):
     if expected.get('notification_channel'):
         notices=[n for n in evidence.get('appointment_notifications', []) if n.get('channel')==expected['notification_channel']]
         check('one_confirmation_in_requested_channel',len(notices)==1)
-        check('evaluation_notification_suppressed',len(notices)==1 and notices[0].get('status')=='suppressed_test')
+        check('evaluation_notification_suppressed',len(notices)==1 and notices[0].get('status') in ('suppressed_test','simulated'))
     if expected.get('inline_membership'):
         check('no_background_membership_jobs',not evidence.get('enrichment_jobs',[]))
     if expected.get('async_overlap'):

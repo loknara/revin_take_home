@@ -163,3 +163,14 @@ production delivery needs an always-on worker/service. External technician CRM/m
 integrations, rescheduling/cancellation, route optimization and the operator dashboard
 remain separate increments. Do not present synthetic staff as real workers outside the
 authorized role-play.
+
+
+### Stub confirmation mode
+
+`CONFIRMATION_DELIVERY_MODE=stub` is the default. Caller preference and recipient consent
+still run normally, but a successful confirmation saves `status=simulated`,
+`provider_name=stub`, and makes no provider request. The agent acknowledges the prepared
+confirmation without claiming a text/email was delivered. This also applies to simulation
+sessions. Credentials alone cannot turn delivery on: explicitly set the mode to `live`
+when real delivery is wanted. `/version` reports the active mode. Historical queued sends
+are blocked by the provider adapter while stub mode is active.
