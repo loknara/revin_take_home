@@ -80,7 +80,26 @@
     }
   },
   "stopSpeakingPlan": {
-    "numWords": 2
+    "numWords": 2,
+    "backoffSeconds": 1.5,
+    "acknowledgementPhrases": [
+      "okay",
+      "ok",
+      "okay I understand",
+      "I understand",
+      "understood",
+      "got it",
+      "yeah",
+      "yes",
+      "uh-huh",
+      "mm-hmm",
+      "right",
+      "sure",
+      "alright",
+      "thank you",
+      "thanks",
+      "okay thanks"
+    ]
   },
   "backgroundSpeechDenoisingPlan": {
     "smartDenoisingPlan": {
