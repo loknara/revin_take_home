@@ -257,9 +257,14 @@ def test_same_turn_confirmation_is_refused_then_accepted_after_a_real_answer(flo
         ("Just to confirm, it's 99 Example Street?", True),
         ("So I have you at 99 Example Street", True),
         ("Okay, let me confirm the address", True),
-        ("99 Example Street, unit none, 10023", True),
         ("Is that right? two one two five five five zero one nine nine", True),
-        ("You can reach me at 212-555-0199", True),
+        ("Your address is 99 Example Street", True),
+        # R2: callers repeat their details when they agree; that is not a readback.
+        ("99 Example Street, unit none, 10023", False),
+        ("You can reach me at 212-555-0199", False),
+        ("Yes, that's correct. 99 Example Street, and the callback number is 212-555-0199.", False),
+        ("The address is correct, 99 Example Street", False),
+        ("The address is 99 Example Street, New York, NY 10023", False),
     ],
 )
 def test_readback_quote_detection(flow, quote, agent):  # noqa: F811
@@ -520,3 +525,86 @@ def test_emergency_with_shared_or_unknown_number_prefills_callback_only(flow):  
     flow.rpc("report_safety_emergency", flow.call, uuid4().hex, "gas_smell", "I smell gas", "+12125550999")
     d = flow.db.execute("select details from public.call_intakes where call_id=%s", (flow.call,)).fetchone()[0]
     assert d["callback_number"] == "+12125550999" and "service_address" not in d
+
+
+# Round 2 voice findings R1, R2 ---------------------------------------------------------
+
+
+def test_plain_address_save_is_never_judged_as_a_confirmation(flow, tool):  # noqa: F811
+    """R1: a save with no confirmation flags must save, whatever the quote says."""
+    real_gap(flow)
+    r = tool(
+        "update_intake",
+        {
+            "expected_revision": 0,
+            "caller_quote": "The address is 123 Example Street, Los Angeles, California 90210.",
+            "changes": {"service_address": "123 Example Street", "service_unit": "none", "service_zip": "90210"},
+        },
+    )
+    assert r["status"] == "saved"
+    assert r["state"]["details"]["service_zip"] == "90210"
+
+
+def test_caller_repeating_details_confirms(flow, tool):  # noqa: F811
+    """R2: "Yes, <address>, and the number is <number>" is the caller's own yes."""
+    real_gap(flow)
+    tool(
+        "update_intake",
+        {
+            "expected_revision": 0,
+            "caller_quote": "It's 410 East 89th Street, apartment 2C, 10128",
+            "changes": {"caller_name": "Jordan", "service_address": "410 East 89th Street", "service_unit": "2C", "service_zip": "10128", "callback_number": "+12125550188"},
+        },
+    )
+    age(flow)
+    r = tool(
+        "update_intake",
+        {
+            "expected_revision": flow.rev,
+            "caller_quote": "Yes, that's correct. 410 East 89th Street, apartment 2C, and you can reach me at 212-555-0188.",
+            "changes": {"address_confirmed": True, "callback_confirmed": True},
+            "confirmation_address": "410 East 89th Street",
+            "confirmation_callback": "+12125550188",
+        },
+    )
+    assert r["status"] == "saved"
+    assert r["state"]["details"]["address_confirmed"] is True
+    assert r["state"]["details"]["callback_confirmed"] is True
+
+
+def test_refused_confirmation_still_saves_the_new_facts(flow, tool):  # noqa: F811
+    """At the database, a yes bundled with a new address saves the address, not the yes.
+    (The webhook rejects such bundles earlier with a named error; this is the backstop.)"""
+    real_gap(flow)
+    r = flow.rpc(
+        "update_call_intake", flow.call, uuid4().hex, flow.number, 0,
+        {"service_address": "152 West 72nd Street", "service_unit": "4B", "service_zip": "10023", "address_confirmed": True},
+        "152 West 72nd Street, apartment 4B, 10023", "152 West 72nd Street", None,
+    )
+    assert r["status"] == "needs_caller_yes" and r["reason"] == "same_turn_as_address_save"
+    assert r["saved_other_changes"] is True
+    details = r["state"]["details"]
+    assert details["service_address"] == "152 West 72nd Street" and details["service_unit"] == "4B"
+    assert details["address_confirmed"] is False
+    age(flow)
+    r = tool(
+        "update_intake",
+        {
+            "expected_revision": r["state"]["revision"],
+            "caller_quote": "Yes, that's right.",
+            "changes": {"address_confirmed": True},
+            "confirmation_address": "152 West 72nd Street",
+        },
+    )
+    assert r["status"] == "saved" and r["state"]["details"]["address_confirmed"] is True
+
+
+def test_saved_facts_hint_says_they_were_saved():
+    from revin_take_home.guidance import shape
+
+    out = shape(
+        "update_intake",
+        {"status": "needs_caller_yes", "reason": "same_turn_as_address_save", "saved_other_changes": True,
+         "state": {"revision": 2, "details": {"service_address": "1 Main St"}}},
+    )
+    assert "saved" in out["hint"]

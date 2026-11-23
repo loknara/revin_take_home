@@ -180,7 +180,9 @@ def _intake_guidance(result, request):
             hint = "Your readback doesn't match what is saved: read expected back to the caller, and if they say yes send it exactly as shown in expected."
         return missing, expected, hint
     if status == "needs_caller_yes":
-        if result.get("reason") == "quote_is_readback":
+        if result.get("saved_other_changes"):
+            hint = "The new details are saved but not confirmed: read expected back to the caller now, END YOUR TURN, and confirm only after they say yes."
+        elif result.get("reason") == "quote_is_readback":
             hint = "caller_quote must be the caller's own answer, not your readback: read expected back, END YOUR TURN, and confirm only after the caller says yes."
         else:
             hint = "You confirmed in the same turn the value was saved: read expected back to the caller now, END YOUR TURN, and confirm only after they say yes."

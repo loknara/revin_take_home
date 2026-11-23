@@ -101,16 +101,17 @@ def test_confirmation_is_bound_to_saved_address(database):
     wrong = database("b", 1, {"address_confirmed": True}, "Yes", "125 West 72nd")
     assert wrong["status"] == "confirmation_mismatch"
     assert wrong["state"]["revision"] == 1
-    assert (
-        database(
-            "c",
-            1,
-            {"service_address": "154 West 72nd", "address_confirmed": True},
-            "Yes",
-            "154 West 72nd",
-        )["status"]
-        == "confirmation_mismatch"
+    # A new address bundled with a yes saves the address but never the confirmation.
+    bundled = database(
+        "c",
+        1,
+        {"service_address": "154 West 72nd", "address_confirmed": True},
+        "Yes",
+        "154 West 72nd",
     )
+    assert bundled["status"] == "needs_caller_yes"
+    assert bundled["state"]["details"]["service_address"] == "154 West 72nd"
+    assert bundled["state"]["details"]["address_confirmed"] is False
 
 
 def test_late_retry_returns_current_state_without_reverting_it(database):
