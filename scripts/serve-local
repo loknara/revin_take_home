@@ -12,8 +12,9 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-if [ ! -f .env ]; then echo "Missing .env (copy .env.example)"; exit 1; fi
-NGROK_DOMAIN=$(sed -n 's/^NGROK_DOMAIN=//p' .env | tail -1)
+ENV_FILE="${ENV_FILE:-.env}"   # e.g. ENV_FILE=.env.localtest for a local-database test stack
+if [ ! -f "$ENV_FILE" ]; then echo "Missing $ENV_FILE (copy .env.example)"; exit 1; fi
+NGROK_DOMAIN=$(sed -n 's/^NGROK_DOMAIN=//p' "$ENV_FILE" | tail -1)
 if [ -z "$NGROK_DOMAIN" ]; then echo "Set NGROK_DOMAIN in .env (dashboard.ngrok.com > Domains)"; exit 1; fi
 PORT="${PORT:-8000}"
 mkdir -p eval-results
@@ -31,7 +32,7 @@ caffeinate -dimsu -w $$ &
 
 (
     while true; do
-        uv run --env-file .env uvicorn revin_take_home.app:create_app --factory \
+        uv run --env-file "$ENV_FILE" uvicorn revin_take_home.app:create_app --factory \
             --host 127.0.0.1 --port "$PORT" >>"$LOG_DIR/backend.log" 2>&1 || true
         echo "$(date) backend exited; restarting" >>"$LOG_DIR/backend.log"
         sleep 2
