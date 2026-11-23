@@ -57,4 +57,6 @@ def office_status(now: datetime | None = None) -> dict:
         "office_hours": f"{DAY_NAMES[first]} to {DAY_NAMES[last]}, {spoken_time(opens)} to {spoken_time(closes)} Eastern",
         "live_transfer_configured": bool(os.getenv("TRANSFER_NUMBER")),
         "local_time": local.strftime("%A %I:%M %p"),
+        # Full date so the agent never guesses which day "Thursday" is (finding O3).
+        "today": f"{DAY_NAMES[local.weekday()]}, {local.strftime('%B')} {local.day}, {local.year}",
     }

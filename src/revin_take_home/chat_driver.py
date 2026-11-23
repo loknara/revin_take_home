@@ -22,7 +22,6 @@ import httpx
 
 from .audit import ROOT
 from .evaluation import ALLOWED_TOOLS
-from .supabase_directory import supabase_client
 
 STATE = Path.cwd() / "eval-results" / "chats"
 # A fictional destination: chat has no phone leg, so this only shows the model's intent.
@@ -161,19 +160,13 @@ def evidence(args):
     ev = backend.get("/evaluation/sessions/" + sid).json()["evidence"]
     intake = (ev.get("call_intakes") or [{}])[0]
     details = {k: v for k, v in (intake.get("details") or {}).items() if not k.startswith("_") and "quote" not in k}
-    db = supabase_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"])
-    alerts = httpx.get(
-        os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/dispatcher_alerts",
-        params={"call_id": "eq." + state["session"]["call_id"], "select": "kind,title,body,status"},
-        headers=db.headers,
-        timeout=20,
-    ).json()
+    alerts = [{k: a.get(k) for k in ("kind", "title", "body", "status")} for a in ev.get("dispatcher_alerts", [])]
     print(json.dumps({
         "details": details,
         "triage": intake.get("triage"),
         "priority_requests": [{k: p.get(k) for k in ("highest_level", "priority_tier", "observed_reasons", "needs_review")} for p in ev.get("priority_requests", [])],
         "membership_checks": [c.get("result", {}).get("membership_status") for c in ev.get("call_membership_checks", [])],
-        "appointments": [{k: a.get(k) for k in ("status", "dispatch_status", "starts_at", "ends_at")} for a in ev.get("appointments", [])],
+        "appointments": [{k: a.get(k) for k in ("status", "dispatch_status", "hold_reason")} | (a.get("slot") or {}) for a in ev.get("appointments", [])],
         "agreements": [{k: a.get(k) for k in ("decision", "caller_quote")} for a in ev.get("booking_agreements", [])],
         "followups": [f.get("reasons") for f in ev.get("followup_requests", [])],
         "dispatcher_alerts": alerts,

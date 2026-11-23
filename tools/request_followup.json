@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "request_followup",
-    "description": "Record a follow-up for this call when booking can't complete, membership needs verification, an existing booking needs a change, or the caller wants a person and no live transfer is available (reason=caller_requested, which also pages the dispatcher). A recorded result does NOT guarantee a callback time, transfer, or cancel an appointment. Never use it instead of emergency guidance.",
+    "description": "Record a follow-up for this call when booking can't complete, membership needs verification, an existing booking needs a change, tools keep failing (reason=technical_issue, after a stop_retrying result), or a customer who needs home heating/cooling service wants a person and no live transfer is available (reason=caller_requested, which also pages the dispatcher). caller_requested needs the caller's name and a confirmed callback number saved first (otherwise needs_details with missing), and is refused as out_of_scope for sales, vendor or non-HVAC calls: decline those politely and take no message. The call record is created from caller ID if nothing was saved yet. Only say a follow-up exists after status=recorded. A recorded result does NOT guarantee a callback time, transfer, or cancel an appointment. Never use it instead of emergency guidance. Any result that isn't a success has status, missing, expected (exact saved values to echo) and a one-sentence hint: follow the hint and never speak past it as if it worked.",
     "parameters": {
       "additionalProperties": false,
       "properties": {
@@ -20,7 +20,8 @@
             "membership_verification",
             "incomplete_intake",
             "booking_change",
-            "caller_requested"
+            "caller_requested",
+            "technical_issue"
           ],
           "title": "Reason",
           "type": "string"

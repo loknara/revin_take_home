@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "propose_booking",
-    "description": "Create a short-lived offer (2 minutes) for one window from the latest search_slots result. Call it BEFORE you offer that window to the caller, then say the date and window in one sentence and ask if you should book it; END YOUR TURN. Requires confirmed address and callback and an eligible routine or priority job. Does not book.",
+    "description": "Create a short-lived offer (2 minutes) for one window from the latest search_slots result. Call it BEFORE you offer that window to the caller, then say the window using spoken from the result (it names today/tomorrow and the date) in one sentence and ask if you should book it; END YOUR TURN. Requires confirmed address and callback and an eligible routine or priority job. Does not book. Any result that isn't a success has status, missing, expected (exact saved values to echo) and a one-sentence hint: follow the hint and never speak past it as if it worked. stop_retrying means stop calling this tool: record request_followup(reason=technical_issue) and tell the caller the team will follow up.",
     "parameters": {
       "additionalProperties": false,
       "properties": {

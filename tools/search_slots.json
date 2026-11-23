@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "search_slots",
-    "description": "Find actual available windows after confirmed eligible address and known HVAC job, for routine or priority calls. Priority repairs include earlier on-call windows. Availability accounts for technician skills, shifts and overlapping assignments. Does not book or reserve a technician; never invent slots.",
+    "description": "Find actual available windows after confirmed eligible address and known HVAC job, for routine or priority calls. Priority calls get the earliest regular window (there is no on-call or overnight service) and the dispatcher is alerted automatically. Each slot has spoken, a ready-to-say window relative to today in New York (e.g. \"tomorrow, Tuesday, November twenty-fourth, between one and four\"): say it as given. Availability accounts for technician skills, shifts and overlapping assignments. Does not book or reserve a technician; never invent slots. Any result that isn't a success has status, missing, expected (exact saved values to echo) and a one-sentence hint: follow the hint and never speak past it as if it worked. stop_retrying means stop calling this tool: record request_followup(reason=technical_issue) and tell the caller the team will follow up.",
     "parameters": {
       "additionalProperties": false,
       "properties": {

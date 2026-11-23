@@ -53,6 +53,7 @@ class FollowupRequest(RevisionRequest):
         "incomplete_intake",
         "booking_change",
         "caller_requested",
+        "technical_issue",
     ]
     caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
 
@@ -94,6 +95,8 @@ WORKFLOW_SCHEMAS = {
 }
 # Safety reports are monotonic and keyed by the provider operation for idempotent replays.
 OPERATION_SCOPED = {"report_safety_emergency"}
+# These may create the call record, so they carry the provider caller ID for a callback.
+ORIGIN_SCOPED = {"report_safety_emergency", "request_followup"}
 RPC_NAMES = {"refresh_context": "refresh_call_context"}
 
 
@@ -114,12 +117,14 @@ class WorkflowStore:
         except (httpx.HTTPError, ValueError) as exc:
             raise WorkflowUnavailable from exc
 
-    async def execute(self, name, call_id, operation_id, request):
+    async def execute(self, name, call_id, operation_id, request, originating_number=None):
         """Run one tool RPC and hide the originating number from the result."""
         payload = {"p_call_id": call_id}
         if name in OPERATION_SCOPED:
             payload["p_operation_id"] = operation_id
         payload |= {"p_" + k: v for k, v in request.model_dump(mode="json").items()}
+        if name in ORIGIN_SCOPED:
+            payload["p_originating_number"] = originating_number
         if name == "confirm_notification":
             current = await self.rpc("get_confirmation_status", {"p_call_id": call_id})
             if not isinstance(current, dict) or not isinstance(

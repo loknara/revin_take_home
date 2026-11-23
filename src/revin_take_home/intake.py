@@ -77,17 +77,11 @@ class UpdateIntake(BaseModel):
     expected_revision: int = Field(ge=0)
     caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
     changes: IntakeChanges
+    # Required when confirming. A missing one is not a validation error: the database
+    # answers confirmation_mismatch with the saved value, so the result can say exactly
+    # what to send (an error naming no value looped in testing, finding O39).
     confirmation_address: ShortText | None = None
     confirmation_callback: ShortText | None = None
-
-    @model_validator(mode="after")
-    def check_confirmation(self) -> Self:
-        """Require the exact address or callback when confirming it."""
-        if self.changes.address_confirmed is True and not self.confirmation_address:
-            raise ValueError("Confirmation must identify the exact saved address")
-        if self.changes.callback_confirmed is True and not self.confirmation_callback:
-            raise ValueError("Confirmation must identify the exact saved callback")
-        return self
 
 
 class IntakeUnavailable(Exception):
@@ -135,6 +129,7 @@ class SupabaseIntakeStore:
                 "revision_conflict",
                 "operation_conflict",
                 "confirmation_mismatch",
+                "needs_caller_yes",
             }:
                 raise ValueError("Unexpected intake result")
             state = result["state"]

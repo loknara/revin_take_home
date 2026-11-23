@@ -66,16 +66,18 @@ def test_booking_atomically_assigns_a_technician_and_is_idempotent(flow):
     )
 
 
-def test_priority_gets_on_call_window_and_persistent_assignment(flow):
+def test_priority_gets_earliest_regular_window_and_persistent_assignment(flow):
+    # D1: there is no on-call person, so priority means the earliest REGULAR window.
     result, _ = book(flow, priority=True)
     assert result["dispatch"]["priority"] == "priority"
-    job = flow.db.execute(
-        "select j.starts_at<now()+interval '3 hours',t.on_call from public.dispatch_jobs j join public.technicians t on t.id=j.technician_id where j.call_id=%s",
+    hour, dow, priority_only = flow.db.execute(
+        "select extract(hour from s.starts_at at time zone 'America/New_York'),"
+        " extract(isodow from s.starts_at at time zone 'America/New_York'), s.priority_only"
+        " from public.dispatch_jobs j join public.appointments a on a.id=j.appointment_id"
+        " join public.appointment_slots s on s.id=a.slot_id where j.call_id=%s",
         (flow.call,),
     ).fetchone()
-    assert (
-        job[0] is True
-    )  # Depending on local time a normal-shift tech may also qualify.
+    assert hour in (9, 13) and dow != 7 and priority_only is False
 
 
 def test_no_technician_means_no_available_slots(flow):

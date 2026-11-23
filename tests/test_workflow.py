@@ -53,6 +53,7 @@ def test_safety_emergency_is_bound_to_provider_call_and_operation(hazard):
                         "p_operation_id": "op",
                         "p_hazard": hazard,
                         "p_caller_quote": "My alarm is going off",
+                        "p_originating_number": None,
                     },
                 )
             ]

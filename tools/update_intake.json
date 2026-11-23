@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "update_intake",
-    "description": "Save newly supplied facts BEFORE asking the next question, even when most fields are missing. A clear AC outage saves cooling_unavailable=true, service_type=repair, service_category=hvac and issue_summary in the first update; a heat outage uses heating_unavailable=true. Save volunteered vulnerability or cold indoors in that same update. One sequential call using the latest state.revision. Save values first; confirm them in a later update (address and callback may be confirmed together in one update). The response carries triage (level, priority_tier, missing_risk_fields, ask_next), readiness and a bounded membership result. The backend prefills an unconfirmed callback from caller ID and, after a unique name/phone match, an unconfirmed saved address. Weather triage is automatic. For a current gas smell, CO alarm, smoke/burning smell or sparking use report_safety_emergency FIRST instead. This tool does not book or dispatch.",
+    "description": "Save newly supplied facts BEFORE asking the next question, even when most fields are missing. One save per caller turn containing everything that turn said, with the caller's own words as caller_quote. A clear AC outage saves cooling_unavailable=true, service_type=repair, service_category=hvac and issue_summary in the first update; a heat outage uses heating_unavailable=true. Save volunteered vulnerability or cold indoors in that same update. One sequential call using the latest state.revision. Fact fields go inside changes (top-level facts are moved there and listed in moved_into_place). Save values first; read them back and END YOUR TURN; confirm only in a later update after the caller says yes (address and callback may be confirmed together). Confirmation sends address_confirmed/callback_confirmed in changes plus confirmation_address/confirmation_callback copied from the saved state (top level; also accepted inside changes). A confirmation whose caller_quote is your own readback, or that arrives in the same turn the value was saved, returns needs_caller_yes. A covered NYC ZIP fills city and state automatically; never ask the state. The response carries triage (level, priority_tier, missing_risk_fields, ask_next), readiness and a bounded membership result. The backend prefills an unconfirmed callback from caller ID and, after a unique name/phone match, an unconfirmed saved address; changing the street of that saved address clears its old unit and ZIP. Weather triage is automatic. For a current gas smell, CO alarm, smoke/burning smell or sparking use report_safety_emergency FIRST instead. This tool does not book or dispatch. Any result that isn't a success has status, missing, expected (exact saved values to echo) and a one-sentence hint: follow the hint and never speak past it as if it worked. stop_retrying means stop calling this tool: record request_followup(reason=technical_issue) and tell the caller the team will follow up.",
     "parameters": {
       "type": "object",
       "additionalProperties": false,
@@ -22,7 +22,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 1000,
-          "description": "Short quote of what the caller actually said supporting these changes. Never invent a quote."
+          "description": "Short quote of what the CALLER actually said supporting these changes (for a confirmation, their yes, e.g. \"Yes, that's right\"). Never your own readback; never invent a quote."
         },
         "changes": {
           "type": "object",
@@ -55,7 +55,7 @@
             },
             "address_confirmed": {
               "type": "boolean",
-              "description": "True only after a separate explicit confirmation of saved street, unit, city, state and ZIP. Do not change address components in this update."
+              "description": "True only after you read the saved street, unit and ZIP back, ended your turn, and the caller said yes in a later turn. Do not change address components in this update."
             },
             "service_type": {
               "type": "string",
@@ -142,7 +142,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 500,
-              "description": "Caller-supplied fact; do not invent. Optional notes must not delay urgent handling."
+              "description": "Caller-supplied city or neighborhood. Filled automatically from a covered NYC ZIP when missing; don't ask for it."
             },
             "issue_duration": {
               "type": "string",
@@ -170,7 +170,8 @@
             },
             "service_state": {
               "type": "string",
-              "pattern": "^[A-Z]{2}$"
+              "pattern": "^[A-Z]{2}$",
+              "description": "Two-letter state. Filled automatically (NY) from a covered NYC ZIP; don't ask for it."
             },
             "service_category": {
               "type": "string",
@@ -187,7 +188,7 @@
             },
             "callback_confirmed": {
               "type": "boolean",
-              "description": "True only for a separate explicit confirmation of the already saved callback; never with a changed callback."
+              "description": "True only after you read the saved callback back, ended your turn, and the caller said yes in a later turn; never with a changed callback."
             },
             "preferred_date": {
               "type": "string",
@@ -213,11 +214,11 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
-          "description": "Required when address_confirmed is true. Copy the exact service_address from the current saved state."
+          "description": "Required when address_confirmed is true: copy service_address exactly from the latest saved state (or from expected.confirmation_address in an error result)."
         },
         "confirmation_callback": {
           "type": "string",
-          "description": "Exact saved callback when callback_confirmed=true."
+          "description": "Required when callback_confirmed is true: copy callback_number exactly from the latest saved state (or from expected.confirmation_callback in an error result)."
         }
       }
     }

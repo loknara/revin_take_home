@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "confirm_booking",
-    "description": "Only after the caller clearly says yes to the specific window you just offered (from the current proposal): decision=accepted with their actual words. Record declined if they say no. Silence, an unrelated yes, 'yes, but...' or a correction is not agreement. Never call it in the same turn as propose_booking. Success atomically books the appointment and assigns a technician (assigned does not mean en route). After an unconfirmed response call get_booking_status before retrying the SAME proposal; never create a duplicate.",
+    "description": "Only after the caller clearly says yes to the specific window you just offered (from the current proposal): decision=accepted with their actual words. Record declined if they say no. Silence, an unrelated yes, 'yes, but...' or a correction is not agreement. Never call it in the same turn as propose_booking. Success atomically books the appointment and assigns a technician (assigned does not mean en route). After an unconfirmed response call get_booking_status before retrying the SAME proposal; never create a duplicate. A booking made earlier in a call that then reports a safety emergency is put on hold for dispatcher review (status on_hold): never call it confirmed. Any result that isn't a success has status, missing, expected (exact saved values to echo) and a one-sentence hint: follow the hint and never speak past it as if it worked. stop_retrying means stop calling this tool: record request_followup(reason=technical_issue) and tell the caller the team will follow up.",
     "parameters": {
       "additionalProperties": false,
       "properties": {

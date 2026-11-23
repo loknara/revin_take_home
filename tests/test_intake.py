@@ -32,7 +32,6 @@ def request(**overrides):
         {"changes": {"customer_id": "demo_maya"}},
         {"changes": {"service_address": " "}},
         {"changes": {"address_confirmed": "true"}},
-        {"changes": {"address_confirmed": True}},
         {
             "changes": {"service_address": "152 West 72nd", "address_confirmed": True},
             "confirmation_address": "152 West 72nd",
@@ -42,6 +41,13 @@ def request(**overrides):
 def test_rejects_unsafe_or_ambiguous_changes(overrides):
     with pytest.raises(ValidationError):
         UpdateIntake.model_validate(request(**overrides))
+
+
+def test_confirmation_without_readback_reaches_database_for_a_structured_answer():
+    # O39: the database replies confirmation_mismatch with missing + the saved value,
+    # instead of a validation error that names no value.
+    parsed = UpdateIntake.model_validate(request(changes={"address_confirmed": True}))
+    assert parsed.confirmation_address is None
 
 
 def envelope(arguments):
