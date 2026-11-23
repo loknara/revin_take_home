@@ -84,6 +84,12 @@ class ConfirmNotification(EmptyRequest):
     caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
 
 
+class ChangeAppointment(RevisionRequest):
+    appointment_id: Identifier
+    action: Literal["reschedule", "cancel"]
+    caller_quote: str = Field(min_length=1, max_length=1000, pattern=r"\S")
+
+
 WORKFLOW_SCHEMAS = {
     "prepare_confirmation": PrepareConfirmation,
     "confirm_notification": ConfirmNotification,
@@ -95,11 +101,14 @@ WORKFLOW_SCHEMAS = {
     "get_booking_status": EmptyRequest,
     "request_followup": FollowupRequest,
     "report_safety_emergency": SafetyEmergency,
+    "find_my_appointment": EmptyRequest,
+    "change_appointment": ChangeAppointment,
 }
 # Safety reports are monotonic and keyed by the provider operation for idempotent replays.
-OPERATION_SCOPED = {"report_safety_emergency"}
+OPERATION_SCOPED = {"report_safety_emergency", "change_appointment"}
 # These may create the call record, so they carry the provider caller ID for a callback.
-ORIGIN_SCOPED = {"report_safety_emergency", "request_followup"}
+# Appointment lookups are bound to the caller ID, never to anything the model says.
+ORIGIN_SCOPED = {"report_safety_emergency", "request_followup", "find_my_appointment", "change_appointment"}
 RPC_NAMES = {"refresh_context": "refresh_call_context"}
 
 

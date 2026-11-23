@@ -42,6 +42,9 @@ OUTCOMES = {
     "emergency_guidance_required",
     "no_availability",
     "already_booked",
+    "no_caller_id",
+    "none_found",
+    "not_found",
 }
 # Outcomes that end a run of failures for that tool.
 SUCCESSES = {
@@ -55,6 +58,8 @@ SUCCESSES = {
     "current",
     "not_booked",
     "on_hold",
+    "found",
+    "cancelled",
 }
 
 RETRY_STATUSES = {
@@ -79,6 +84,9 @@ HINTS = {
     "emergency_guidance_required": "This is a safety emergency: repeat the evacuation and 911 guidance only; do not record follow-ups or book.",
     "no_availability": "No windows are open: record request_followup with reason no_availability and tell the caller the team will call to schedule; never invent a time.",
     "already_booked": "This call already has a booking: call get_booking_status and read that window instead of booking again.",
+    "no_caller_id": "Without caller ID the visit can't be looked up: offer a callback (request_followup with reason booking_change) after saving their name and a confirmed number.",
+    "none_found": "No upcoming visit was booked from this number: say so, and offer a callback (request_followup with reason booking_change) after saving their name and a confirmed number.",
+    "not_found": "That visit isn't one of this caller's upcoming visits: call find_my_appointment again and use an appointment_id from its result.",
 }
 for _status in RETRY_STATUSES:
     HINTS[_status] = "That window is no longer valid: call search_slots again and offer a fresh window from the new result."
@@ -385,3 +393,11 @@ def _add_spoken(tool, result, now):
             result["spoken"] = result["arrival"]["spoken"]
     elif tool in {"get_booking_status", "confirm_booking"} and result.get("starts_at"):
         _label(result, now)
+    if tool == "find_my_appointment":
+        for appointment in result.get("appointments") or []:
+            _label(appointment, now)
+    if tool == "change_appointment":
+        for key in ("cancelled", "rescheduling"):
+            _label(result.get(key), now)
+    if tool == "confirm_booking":
+        _label(result.get("replaced"), now)

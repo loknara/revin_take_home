@@ -1,0 +1,63 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "change_appointment",
+    "description": "Move or cancel a visit from find_my_appointment, only after the caller said yes to that visit. action=reschedule copies the visit's details into this call (result: saved with state.revision and rescheduling); then call search_slots and offer a window as usual: when the caller agrees, confirm_booking books the new window and releases the old one in the same step (result replaced). action=cancel needs the caller's explicit yes to cancelling that visit; result cancelled with its spoken window. Never say a visit is moved before confirm_booking returns booked, or cancelled before this returns cancelled.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_revision",
+        "appointment_id",
+        "action",
+        "caller_quote"
+      ],
+      "properties": {
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Latest state.revision (0 if nothing saved yet)."
+        },
+        "appointment_id": {
+          "type": "string",
+          "description": "appointment_id from find_my_appointment."
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "reschedule",
+            "cancel"
+          ]
+        },
+        "caller_quote": {
+          "type": "string",
+          "description": "The caller's own words agreeing to move or cancel this visit."
+        }
+      }
+    }
+  },
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "",
+      "blocking": false
+    },
+    {
+      "type": "request-response-delayed",
+      "timingMilliseconds": 1500,
+      "contents": [
+        {
+          "type": "text",
+          "language": "en",
+          "text": "I'm still checking on that."
+        },
+        {
+          "type": "text",
+          "language": "es",
+          "text": "Sigo verificando eso."
+        }
+      ]
+    }
+  ]
+}
