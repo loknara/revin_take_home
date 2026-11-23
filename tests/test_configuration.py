@@ -74,7 +74,7 @@ def test_slow_tools_have_own_delay_message_and_transfer_claims_no_callback():
     for name in ("search_slots", "propose_booking", "confirm_booking", "update_intake"):
         tool = json.loads(pathlib.Path(f"tools/{name}.json").read_text())
         delayed = [m for m in tool["messages"] if m["type"] == "request-response-delayed"]
-        assert delayed and delayed[0]["timingMilliseconds"] >= 2000
+        assert delayed and 1000 <= delayed[0]["timingMilliseconds"] < 1700  # Vapi's default fired ~1.7 s in
     raw = pathlib.Path("tools/transfer_call.json").read_text()
     assert "on-call" not in raw.lower()  # D1: there is no on-call person
     transfer = json.loads(raw)

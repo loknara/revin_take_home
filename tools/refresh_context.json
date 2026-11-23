@@ -19,7 +19,7 @@
     },
     {
       "type": "request-response-delayed",
-      "timingMilliseconds": 3000,
+      "timingMilliseconds": 1500,
       "contents": [
         {
           "type": "text",

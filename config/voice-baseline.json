@@ -54,7 +54,7 @@
     "version": "2",
     "chunkPlan": {
       "enabled": true,
-      "minCharacters": 60,
+      "minCharacters": 30,
       "punctuationBoundaries": [".", "!", "?"]
     }
   },
