@@ -75,8 +75,10 @@ def test_billing_failure_stops_without_retrying_start_and_closes_session(monkeyp
     assert calls[-1]==('POST',f'/evaluation/sessions/{sid}/close')
 
 
-def test_runner_requires_judge_and_database_and_collects_evidence(monkeypatch,tmp_path):
+@pytest.mark.parametrize('poll_failure',[None,503,429,'timeout'])
+def test_runner_requires_judge_and_database_and_collects_evidence(monkeypatch,tmp_path,poll_failure):
     monkeypatch.setenv('VAPI_API_KEY','test');monkeypatch.setenv('VAPI_WEBHOOK_SECRET',SECRET)
+    monkeypatch.setattr('revin_take_home.evaluation.time.sleep',lambda _:None)
     sid=str(uuid4());run_id=str(uuid4());item_id=str(uuid4());requests=[]
     evidence={'call_intakes':[{'revision':1,'details':{'issue_summary':'Maintenance'}}],
               'intake_events':[{'operation_id':'op','applied_revision':1,'changes':{'issue_summary':'Maintenance'}}],
@@ -87,6 +89,12 @@ def test_runner_requires_judge_and_database_and_collects_evidence(monkeypatch,tm
         if req.url.path=='/eval/simulation/run':
             body=json.loads(req.content)
             assert body['iterations']==1 and 'assistantId' not in body['target']
+            return httpx.Response(200,json={'id':run_id,'status':'running'})
+        if req.url.path==f'/eval/simulation/run/{run_id}':
+            assert req.method=='GET', 'Transient polling failures must not cancel the call'
+            if requests.count(('GET',req.url.path))==1 and poll_failure is not None:
+                if poll_failure=='timeout':raise httpx.ReadTimeout('Temporary outage',request=req)
+                return httpx.Response(poll_failure,json={'error':'temporarily unavailable'})
             return httpx.Response(200,json={'id':run_id,'status':'ended'})
         if req.url.path==f'/eval/simulation/run/{run_id}/item':return httpx.Response(200,json=[{'id':item_id}])
         if req.url.path==f'/eval/simulation/run/{run_id}/item/{item_id}':return httpx.Response(200,json={
@@ -102,6 +110,7 @@ def test_runner_requires_judge_and_database_and_collects_evidence(monkeypatch,tm
     try:result=runner.run_one(case,profile,live,'credential','chat',60,tmp_path)
     finally:runner.close()
     assert result['status']=='passed' and all(c['passed'] for c in result['checks'])
+    assert requests.count(('POST','/eval/simulation/run'))==1
     assert requests[-1]==('POST',f'/evaluation/sessions/{sid}/close')
     assert (tmp_path/'last-run.json').exists() and not (tmp_path/'active-run.json').exists()
 

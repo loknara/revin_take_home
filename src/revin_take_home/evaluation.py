@@ -303,7 +303,17 @@ class Runner:
             while run.get('status')!='ended':
                 if time.monotonic()>=deadline:raise TimeoutError('Simulation exceeded polling deadline')
                 print('Simulation',run_id,run.get('status'),flush=True);time.sleep(5)
-                r=self.vapi.get('/eval/simulation/run/'+run_id);r.raise_for_status();run=r.json()
+                # Polling is read-only. A temporary outage must not cancel a healthy
+                # voice call or close its tool session. Never retry the paid POST.
+                try:
+                    r=self.vapi.get('/eval/simulation/run/'+run_id)
+                except httpx.TransportError:
+                    print('Status poll unavailable; retaining the existing run.',flush=True)
+                    continue
+                if r.status_code==429 or r.status_code>=500:
+                    print('Status poll returned HTTP',r.status_code,'; retaining the existing run.',flush=True)
+                    continue
+                r.raise_for_status();run=r.json()
             r=self.vapi.get('/eval/simulation/run/'+run_id+'/item');r.raise_for_status()
             items=r.json();items=items if isinstance(items,list) else items.get('results',[])
             if len(items)!=1:raise RuntimeError('Expected exactly one simulation item')
