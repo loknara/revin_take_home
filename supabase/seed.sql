@@ -31,3 +31,6 @@ insert into public.memberships(location_id,plan_name,status,effective_on,expires
     ('demo_leah_home','Summit Care — demo','inactive','2026-01-01','2027-12-31')
 on conflict(location_id) do nothing;
 -- Omar has a customer/location record and no membership record; no benefits configured.
+
+-- Explicit synthetic primary address for the saved-address confirmation flow.
+update public.service_locations set is_primary=true where id='demo_maya_home';

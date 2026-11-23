@@ -13,8 +13,8 @@ def directory():
     psycopg = pytest.importorskip('psycopg')
     from psycopg.types.json import Jsonb
     prefix = 'test_membership_'+uuid4().hex
-    with psycopg.connect(Path('supabase/.temp/pooler-url').read_text().strip(),
-                          password=os.environ['SUPABASE_DB_PASSWORD'], sslmode='require',
+    with psycopg.connect((os.environ.get('TEST_DATABASE_URL') or Path('supabase/.temp/pooler-url').read_text().strip()),
+                          password=os.environ.get('SUPABASE_DB_PASSWORD', ''), sslmode='disable' if os.environ.get('TEST_DATABASE_URL') else 'require',
                           connect_timeout=15, autocommit=True) as db:
         db.execute("set time zone 'America/New_York'")
         customer_id, location_id, call_id = prefix+'_customer', prefix+'_location', prefix+'_call'
@@ -128,7 +128,7 @@ def test_unrelated_intake_change_retains_membership_context(directory):
 def test_missing_fields_and_confirmation_do_not_disclose_plan(directory):
     directory.update({'caller_name': 'Maya'})
     r = directory.resolve()
-    assert r['status'] == 'needs_details' and 'service_unit' in r['missing_fields']
+    assert r['status'] == 'needs_address_confirmation' and r['membership_status'] == 'unknown'
     assert r['membership_status'] == 'unknown'
 
 
