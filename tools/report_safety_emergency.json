@@ -1,0 +1,42 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "report_safety_emergency",
+    "description": "FIRST action, even mid-booking, when the caller reports a CURRENT gas smell, a carbon monoxide (CO) alarm going off, smoke or a burning smell from the system, or electrical sparking. A fixed evacuation and 911 message plays BEFORE the backend request. Do not call update_intake first or ask any administrative question. Not for hypothetical questions. This records the emergency and pages the dispatcher; it does not contact 911 or send anyone.",
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hazard",
+        "caller_quote"
+      ],
+      "properties": {
+        "hazard": {
+          "type": "string",
+          "enum": [
+            "gas_smell",
+            "carbon_monoxide_alarm",
+            "smoke_or_burning_smell",
+            "electrical_sparking"
+          ],
+          "description": "gas_smell: smells gas/rotten eggs. carbon_monoxide_alarm: CO detector sounding. smoke_or_burning_smell: smoke or burning smell from furnace/AC/vents. electrical_sparking: sparks, arcing or melting wires at the equipment."
+        },
+        "caller_quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "\\S",
+          "description": "Short verbatim caller quote reporting the hazard."
+        }
+      }
+    }
+  },
+  "messages": [
+    {
+      "type": "request-start",
+      "blocking": true,
+      "content": "Please get everyone out of the home now, and don't use light switches or appliances. Once you're safely outside, call 911."
+    }
+  ]
+}

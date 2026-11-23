@@ -1,0 +1,24 @@
+{
+  "type": "transferCall",
+  "destinations": [
+    {
+      "type": "number",
+      "number": "{{TRANSFER_NUMBER}}",
+      "description": "Summit Air staff (office during business hours, on-call dispatcher after hours). Use only when the call-start context allows a live transfer and the caller wants a person or the situation needs one, after telling the caller you're connecting them.",
+      "message": "Connecting you with our team now. Please stay on the line.",
+      "transferPlan": {
+        "mode": "blind-transfer",
+        "fallbackPlan": {
+          "message": "I wasn't able to reach anyone right now. I've noted that you'd like a call back, and I can keep helping you here.",
+          "endCallEnabled": false
+        }
+      }
+    }
+  ],
+  "messages": [
+    {
+      "type": "request-failed",
+      "content": "I wasn't able to connect you. I've noted that you'd like a call back."
+    }
+  ]
+}

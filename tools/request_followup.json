@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "request_followup",
-    "description": "Persist a demo follow-up when booking cannot complete, membership needs verification, or an existing booking needs a change. Scope is this call only. A recorded result does NOT notify dispatch, promise a callback/ETA, transfer, or cancel an appointment. Give gas safety guidance instead of delaying for this tool.",
+    "description": "Record a follow-up for this call when booking can't complete, membership needs verification, an existing booking needs a change, or the caller wants a person and no live transfer is available (reason=caller_requested, which also pages the dispatcher). A recorded result does NOT guarantee a callback time, transfer, or cancel an appointment. Never use it instead of emergency guidance.",
     "parameters": {
       "additionalProperties": false,
       "properties": {

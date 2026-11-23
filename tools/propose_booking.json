@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "propose_booking",
-    "description": "Create a current offer using search_id and slot_id from search_slots only. Requires complete confirmed callback/address and eligible routine or priority service. Read the returned date, New York arrival window, address and job, ask explicit agreement, then END YOUR TURN. Does not book.",
+    "description": "Create a short-lived offer (2 minutes) for one window from the latest search_slots result. Call it BEFORE you offer that window to the caller, then say the date and window in one sentence and ask if you should book it; END YOUR TURN. Requires confirmed address and callback and an eligible routine or priority job. Does not book.",
     "parameters": {
       "additionalProperties": false,
       "properties": {
