@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "confirm_booking",
-    "description": "Only AFTER a separate clear answer agreeing to the specific current proposal, commit accepted or record declined with the actual caller quote. Silence, an unrelated yes, partial speech or a correction is NOT agreement. Never combine with propose_booking in one turn. After any unconfirmed response call get_booking_status before retrying the SAME proposal; never create a duplicate.",
+    "description": "Only AFTER a separate clear answer agreeing to the specific current proposal, commit accepted or record declined with the actual caller quote. Silence, an unrelated yes, partial speech or a correction is NOT agreement. Never combine with propose_booking in one turn. After any unconfirmed response call get_booking_status before retrying the SAME proposal; never create a duplicate. Success atomically saves the appointment and assigns an available technician/work order. Assignment does not mean en route. Technician conflicts require a fresh offer and agreement.",
     "parameters": {
       "additionalProperties": false,
       "properties": {

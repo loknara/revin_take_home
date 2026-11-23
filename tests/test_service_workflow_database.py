@@ -163,7 +163,7 @@ def test_booking_requires_offer_then_agreement_and_is_idempotent(booking):
     call,p=booking.offer(); w=booking.w
     assert w.rpc('get_booking_status',call)['status']=='not_booked'
     result=booking.confirm(call,p)
-    assert result['status']=='booked' and result['dispatch_status']=='demo_only'
+    assert result['status']=='booked' and result['dispatch_status']=='assigned'
     assert result['timezone']=='America/New_York'
     assert 'membership' in result
     retry=booking.confirm(call,p)
@@ -234,9 +234,11 @@ def test_no_availability_is_distinct_from_failure(booking):
     assert r['status']=='no_availability' and r['slots']==[]
 
 
-def test_risk_blocks_search_even_if_membership_pending(booking):
+def test_priority_search_is_allowed_but_gas_blocks_even_if_membership_pending(booking):
     call,_=booking.w.ready();booking.w.update(call,2,{'cooling_unavailable':True,'vulnerable_resident':True})
-    assert booking.w.rpc('search_slots',call,3)['status']=='not_eligible'
+    assert booking.w.rpc('search_slots',call,3)['status']=='available'
+    booking.w.update(call,3,{'gas_smell_reported':True})
+    assert booking.w.rpc('search_slots',call,4)['status']=='not_eligible'
 
 
 def test_followup_is_durable_deduplicated_and_not_notified(workflow):

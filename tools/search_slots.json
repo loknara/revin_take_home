@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "search_slots",
-    "description": "Read up to three available synthetic arrival windows for the confirmed residential HVAC address. Can prefetch before callback confirmation. Save a requested date first. Slots are not reserved. Distinguish no_availability from an unavailable lookup.",
+    "description": "Find actual available windows after confirmed eligible address and known HVAC job, for routine or priority calls. Priority repairs include earlier on-call windows. Availability accounts for technician skills, shifts and overlapping assignments. Does not book or reserve a technician; never invent slots.",
     "parameters": {
       "additionalProperties": false,
       "properties": {

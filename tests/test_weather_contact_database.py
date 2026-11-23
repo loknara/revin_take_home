@@ -1,10 +1,11 @@
 """Isolated database tests only: weather fixtures roll back and never touch hosted data."""
 import os
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import pytest
 
-pytestmark = pytest.mark.skipif(not os.environ.get('TEST_DATABASE_URL'), reason='Requires isolated TEST_DATABASE_URL')
+pytestmark = pytest.mark.skipif(urlparse(os.environ.get('TEST_DATABASE_URL','')).hostname not in ('127.0.0.1','localhost','::1'), reason='Requires isolated TEST_DATABASE_URL')
 
 
 @pytest.fixture
@@ -270,4 +271,4 @@ def test_http_tool_sequence_returns_active_membership_and_books_from_saved_conta
         booked=tool('confirm_booking',{'expected_revision':revision,'proposal_id':proposal['proposal_id'],
                                        'decision':'accepted','caller_quote':'Yes, reserve that window'})
         assert booked['status']=='booked' and booked['membership']['membership_status']=='active'
-        assert booked['dispatch_status']=='demo_only'
+        assert booked['dispatch_status']=='assigned'
