@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, SecretStr, ValidationError, model_validat
 
 from .alerts import DispatcherAlertSender, DispatcherAlertWorker
 from .office import office_status
+from .safety_backstop import record_missed_emergency
 from .weather import WeatherWorker, stop_worker
 from .notifications import NotificationSender, NotificationWorker
 from .audit import AuditStore, config_fingerprint
@@ -134,6 +135,7 @@ class ToolEnvelope(BaseModel):
 class EndCallMessage(CallMessage):
     type: Literal["end-of-call-report"]
     endedReason: str = Field(default="unknown", max_length=200)
+    artifact: dict | None = None
 
 
 class EndCallEnvelope(BaseModel):
@@ -267,10 +269,22 @@ def create_app(
     @app.post("/vapi/events", dependencies=[Depends(authenticate)])
     async def call_ended(body: EndCallEnvelope):
         """Persist the end-of-call reason or fail if the write is unconfirmed."""
+        # A caller who hung up to evacuate may never have reached report_safety_emergency.
+        backstop_failed = False
+        try:
+            if await record_missed_emergency(
+                workflow_store, body.message.call.id, body.message.artifact
+            ):
+                if alert_worker is not None:
+                    alert_worker.wake.set()
+        except WorkflowUnavailable:
+            backstop_failed = True
         if audit_store is None or not await audit_store.call(
             body.message.call.id, body.message.endedReason
         ):
             raise HTTPException(status_code=503, detail="Call outcome save unconfirmed")
+        if backstop_failed:
+            raise HTTPException(status_code=503, detail="Safety backstop unconfirmed")
         return {"status": "recorded"}
 
     retries = RetryTracker()

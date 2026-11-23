@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "report_safety_emergency",
-    "description": "FIRST action, even mid-booking, when the caller reports a CURRENT gas smell, a carbon monoxide (CO) alarm going off, smoke or a burning smell from the system, or electrical sparking. A fixed evacuation and 911 message plays BEFORE the backend request. Do not call update_intake first or ask any administrative question. Not for hypothetical questions. This records the emergency and pages the dispatcher; it does not contact 911 or send anyone.",
+    "description": "FIRST action, even mid-booking, when the caller reports a CURRENT gas smell, a carbon monoxide (CO) alarm that is sounding or went off recently (even if it has stopped), smoke or a burning smell from the system, or electrical sparking. Calling it immediately speaks a fixed evacuation and 911 message while the emergency is recorded, so do not repeat that message yourself and do not call update_intake first or ask any administrative question. Send only hazard and caller_quote. Not for hypothetical questions. This records the emergency and pages the dispatcher; it does not contact 911 or send anyone.",
     "parameters": {
       "type": "object",
       "additionalProperties": false,
@@ -20,7 +20,7 @@
             "smoke_or_burning_smell",
             "electrical_sparking"
           ],
-          "description": "gas_smell: smells gas/rotten eggs. carbon_monoxide_alarm: CO detector sounding. smoke_or_burning_smell: smoke or burning smell from furnace/AC/vents. electrical_sparking: sparks, arcing or melting wires at the equipment."
+          "description": "gas_smell: smells gas/rotten eggs. carbon_monoxide_alarm: CO detector sounding or sounded recently. smoke_or_burning_smell: smoke or burning smell from furnace/AC/vents. electrical_sparking: sparks, arcing or melting wires at the equipment."
         },
         "caller_quote": {
           "type": "string",
@@ -35,8 +35,19 @@
   "messages": [
     {
       "type": "request-start",
-      "blocking": true,
-      "content": "Please get everyone out of the home now, and don't use light switches or appliances. Once you're safely outside, call 911."
+      "blocking": false,
+      "contents": [
+        {
+          "type": "text",
+          "language": "en",
+          "text": "Please get everyone out of the home now, and call nine one one once you're outside. Don't use light switches or appliances on your way out."
+        },
+        {
+          "type": "text",
+          "language": "es",
+          "text": "Por favor, salgan todos de la casa ahora y llamen al nueve uno uno cuando estén afuera. No usen interruptores de luz ni aparatos al salir."
+        }
+      ]
     }
   ]
 }

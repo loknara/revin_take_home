@@ -5,9 +5,12 @@
     python -m revin_take_home.configure_vapi --apply --restore eval-results/deployment-.../backup.json
 
 --apply waits until the backend at --backend-url serves the same prompt/tool fingerprint,
-creates new versioned tools (never mutates tools a live call may be using), points the
-assistant and the phone number's assistant-request webhook at that backend, and saves a
-private rollback snapshot first. It never starts a call.
+creates new versioned tools (never mutates tools a live call may be using), applies the
+versioned voice settings in config/voice-baseline.json (model, transcriber/endpointing,
+voice chunking, interruption and denoising plans), points the assistant and the phone
+number's assistant-request webhook at that backend, and saves a private rollback snapshot
+first. It never starts a call. The plan-only run prints the voice settings and every tool's
+spoken messages so they can be reviewed before applying.
 """
 
 import argparse
@@ -43,6 +46,33 @@ FAILURE_MESSAGE = (
 )
 
 
+def voice_settings() -> dict:
+    """Versioned voice-layer settings: {"model": {...}, "transcriber": {...}, ...}.
+
+    "model" fields are merged into the live model (prompt and tools are set separately);
+    every other section replaces the assistant's section of the same name.
+    """
+    return json.loads((ROOT / "config/voice-baseline.json").read_text())
+
+
+def contains(actual, expected) -> bool:
+    """True when every field in expected appears in actual (Vapi adds defaults on readback)."""
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and all(
+            contains(actual.get(k), v) for k, v in expected.items()
+        )
+    return actual == expected
+
+
+def tool_messages() -> dict:
+    """Spoken tool messages, as deployed (the transfer number stays a placeholder)."""
+    names = sorted(ALLOWED_TOOLS) + ["transfer_call"]
+    return {
+        name: json.loads((ROOT / f"tools/{name}.json").read_text()).get("messages", [])
+        for name in names
+    }
+
+
 def private_json(path: Path, value) -> None:
     """Write JSON with owner-only directory and file permissions."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -51,9 +81,11 @@ def private_json(path: Path, value) -> None:
     path.chmod(0o600)
 
 
-def assistant_patch(live, tool_ids, backend, credential):
-    """Swap in the versioned prompt and tools; keep the live model/voice/transcriber settings."""
+def assistant_patch(live, tool_ids, backend, credential, settings=None):
+    """Swap in the versioned prompt, tools and voice settings; keep other live model settings."""
+    settings = voice_settings() if settings is None else settings
     model = copy.deepcopy(live["model"])
+    model.update(copy.deepcopy(settings.get("model", {})))
     model["messages"] = [
         {
             "role": "system",
@@ -63,7 +95,7 @@ def assistant_patch(live, tool_ids, backend, credential):
     model.pop("tools", None)
     model.pop("toolRefs", None)
     model["toolIds"] = tool_ids
-    return {
+    patch = {
         "model": model,
         "server": {
             "url": backend + "/vapi/events",
@@ -73,6 +105,10 @@ def assistant_patch(live, tool_ids, backend, credential):
         "serverMessages": ["end-of-call-report"],
         "firstMessage": FIRST_MESSAGE,
     }
+    for section, value in settings.items():
+        if section != "model":
+            patch[section] = copy.deepcopy(value)
+    return patch
 
 
 def matching_tool(existing, desired):
@@ -156,12 +192,19 @@ def restore(api, assistant_id, backup_path):
     if backup["assistant"]["id"] != assistant_id:
         raise RuntimeError("Backup assistant differs from configured assistant")
     old = backup["assistant"]
+    sections = ["model", "server", "serverMessages", "firstMessage"]
+    sections += [k for k in voice_settings() if k != "model"]
     api.patch(
         "/assistant/" + assistant_id,
-        json={
-            k: old.get(k) for k in ("model", "server", "serverMessages", "firstMessage")
-        },
+        json={k: old[k] for k in sections if k in old},
     ).raise_for_status()
+    missing = [k for k in sections if k not in old]
+    if missing:
+        print(
+            "Backup had no "
+            + ", ".join(missing)
+            + "; those sections keep their current values. Clear them in the dashboard if needed."
+        )
     phone = backup["phone"]
     api.patch(
         "/phone-number/" + phone["id"],
@@ -175,14 +218,7 @@ def apply(api, assistant_id, phone_id, backend):
     live = api.get("/assistant/" + assistant_id)
     live.raise_for_status()
     live = live.json()
-    baseline = json.loads((ROOT / "config/voice-baseline.json").read_text())
-    for section, fields in baseline.items():
-        if any(live.get(section, {}).get(k) != v for k, v in fields.items()):
-            raise RuntimeError(
-                "Live "
-                + section
-                + " differs from the versioned baseline; reconcile before applying"
-            )
+    settings = voice_settings()
 
     phone = api.get("/phone-number/" + phone_id)
     phone.raise_for_status()
@@ -236,7 +272,7 @@ def apply(api, assistant_id, phone_id, backend):
         ids.append(tool_id)
         private_json(folder / "created-tools.json", ids)
 
-    patch = assistant_patch(live, ids, backend, credential)
+    patch = assistant_patch(live, ids, backend, credential, settings)
     api.patch("/assistant/" + assistant_id, json=patch).raise_for_status()
 
     hooks = [h for h in phone.get("hooks", []) if h.get("on") != "call.ending"]
@@ -264,9 +300,13 @@ def apply(api, assistant_id, phone_id, backend):
         or checked_phone.get("server", {}).get("url") != server["url"]
     ):
         raise RuntimeError("Phone readback mismatch; use saved backup to restore")
-    for key in ("voice", "transcriber"):
-        if readback.get(key) != live.get(key):
-            raise RuntimeError("Unexpected voice/transcriber change")
+    for section, fields in settings.items():
+        if not contains(readback.get(section), fields):
+            raise RuntimeError(
+                "Voice settings readback mismatch in "
+                + section
+                + "; use saved backup to restore"
+            )
     private_json(
         folder / "deployed.json",
         {
@@ -276,9 +316,9 @@ def apply(api, assistant_id, phone_id, backend):
         },
     )
     print(
-        "Activated versioned tools and prompt at "
+        "Activated versioned tools, prompt and voice settings at "
         + backend
-        + "; STT/TTS preserved. Backup: "
+        + ". Backup: "
         + str(folder / "backup.json")
     )
 
@@ -307,6 +347,8 @@ def main(argv=None):
                     "live_transfer": bool(os.getenv("TRANSFER_NUMBER")),
                     "backend": backend,
                     "phone_fallback": FAILURE_MESSAGE,
+                    "voice_settings": voice_settings(),
+                    "tool_messages": tool_messages(),
                     "restore": str(args.restore) if args.restore else None,
                 },
                 indent=2,

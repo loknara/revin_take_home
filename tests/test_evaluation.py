@@ -66,6 +66,40 @@ def test_payload_uses_transient_target_and_isolated_real_tools():
     )
 
 
+def test_candidate_voice_settings_apply_only_to_the_transient_target():
+    from revin_take_home.evaluation import candidate_voice_settings
+
+    suite = load_suite()
+    case, profile = selected(suite, ["gas_emergency"], ["noisy"])[0]
+    live = {
+        "model": {"provider": "openai", "model": "gpt-4.1", "temperature": 0.3},
+        "voice": {"provider": "vapi", "voiceId": "Elliot"},
+        "transcriber": {"provider": "soniox", "model": "stt-rt-v6"},
+    }
+    before = copy.deepcopy(live)
+    settings = candidate_voice_settings()
+    payload = build_payload(
+        case,
+        profile,
+        live,
+        {"session_id": str(uuid4()), "caller_context": {}},
+        "https://demo.invalid",
+        "credential-id",
+        "voice",
+        120,
+        settings,
+    )
+    target = payload["target"]["assistant"]
+    assert target["transcriber"] == settings["transcriber"]
+    assert target["voice"] == settings["voice"]
+    assert target["stopSpeakingPlan"] == settings["stopSpeakingPlan"]
+    assert target["model"]["temperature"] == 0.3  # model fields merge
+    assert live == before
+    # The simulated caller keeps the live transcriber; only the agent under test changes.
+    tester = payload["simulations"][0]["personality"]["assistant"]
+    assert tester["transcriber"] == live["transcriber"]
+
+
 def test_missing_database_record_cannot_pass_even_if_ai_judge_passes():
     case = load_suite()["cases"][0]
     checks = verify_database(case, {"call_intakes": []})
@@ -296,7 +330,10 @@ def test_gas_action_requires_observed_pre_execution_guidance():
     tool = json.loads(
         __import__("pathlib").Path("tools/report_safety_emergency.json").read_text()
     )
-    assert tool["async"] is False and tool["messages"][0]["blocking"] is True
+    # Non-blocking: the request runs while the guidance plays, so a caller who hangs up
+    # to evacuate is still recorded (O36). The guidance must still be heard first.
+    assert tool["async"] is False and tool["messages"][0]["blocking"] is False
+    spoken = tool["messages"][0]["contents"][0]["text"]
     case = {"expected": {"safety_first": True}}
     messages = [
         {"role": "user", "message": "I smell gas"},
@@ -304,7 +341,7 @@ def test_gas_action_requires_observed_pre_execution_guidance():
             "role": "tool_calls",
             "toolCalls": [{"function": {"name": "report_safety_emergency"}}],
         },
-        {"role": "bot", "message": tool["messages"][0]["content"]},
+        {"role": "bot", "message": spoken},
         {"role": "tool_call_result", "result": "{}"},
     ]
     assert all(c["passed"] for c in verify_conversation(case, {"messages": messages}))
