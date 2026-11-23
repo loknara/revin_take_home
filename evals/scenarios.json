@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "cases": [
     {
       "id": "active_member",
@@ -206,7 +206,7 @@
     {
       "id": "priority_cooling",
       "fixture": "maya",
-      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Start with: My AC is running but is not cooling, and my elderly mother lives here. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. The property is residential in New York, NY. Your callback is +1 212 555 0188; explicitly confirm only that number when read back. You can attend any offered arrival window. Choose the first valid offered window and explicitly agree after the assistant asks to book that specific appointment. Equipment model and access notes are unknown; do not invent them. Accept the earliest returned priority window and explicitly agree to book it. Decline SMS/email confirmation when asked.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Start with: My AC is running but is not cooling, and my elderly mother lives here. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. The property is residential in New York, NY. Your callback is +1 212 555 0188; explicitly confirm only that number when read back. You can attend any offered arrival window. Choose the first valid offered window and explicitly agree after the assistant asks to book that specific appointment. Equipment model and access notes are unknown; do not invent them. Accept the earliest returned priority window and explicitly agree to book it.",
       "expected": {
         "details": {
           "cooling_unavailable": true,
@@ -221,7 +221,7 @@
     {
       "id": "priority_heating",
       "fixture": "maya",
-      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Start with: My furnace will not heat and it is freezing cold inside the house. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. The property is residential in New York, NY. Your callback is +1 212 555 0188; explicitly confirm only that number when read back. You can attend any offered arrival window. Choose the first valid offered window and explicitly agree after the assistant asks to book that specific appointment. Equipment model and access notes are unknown; do not invent them. Accept the earliest returned priority window and explicitly agree to book it. Decline SMS/email confirmation when asked.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. End the conversation after its final outcome, or after emergency guidance and acknowledgment. Never actually call emergency services. Start with: My furnace will not heat and it is freezing cold inside the house. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. The property is residential in New York, NY. Your callback is +1 212 555 0188; explicitly confirm only that number when read back. You can attend any offered arrival window. Choose the first valid offered window and explicitly agree after the assistant asks to book that specific appointment. Equipment model and access notes are unknown; do not invent them. Accept the earliest returned priority window and explicitly agree to book it.",
       "expected": {
         "details": {
           "heating_unavailable": true,
@@ -395,11 +395,10 @@
             "issue_summary": "__nonempty__"
           },
           "verbatim_quotes": true,
-          "forbidden_question_terms": [
-            "anyone elderly",
-            "anyone at home elderly",
-            "anyone medically vulnerable",
-            "anyone at home especially vulnerable"
+          "required_question_terms": [
+            "higher risk",
+            "older adult",
+            "health condition"
           ]
         }
       }
@@ -408,7 +407,7 @@
       "id": "priority_service_first",
       "fixture": "unknown",
       "opening": "My AC is not working, and my elderly mother lives here.",
-      "instructions": "You are a synthetic customer. Answer only with these facts and do not invent details. You are Alex Davis. The property is your single-family home, with no unit: 152 West 72nd Street, New York, NY 10023. Your callback number is +1 212 555 0188. Confirm only the correct full address and number when read back. Accept the first returned arrival window only after the agent reads the offer and asks for final agreement. You do not need diagnosis or optional equipment questions. You want service arranged quickly. Do not actually call emergency services. End after the final booking or truthful recorded priority next step. Your AC is not cooling and your elderly mother lives with you. Do not invent a diagnosis. Give contact details for a priority request; do not insist on a routine slot. Accept the earliest returned priority window and explicitly agree to book it. Decline SMS/email confirmation when asked.",
+      "instructions": "You are a synthetic customer. Answer only with these facts and do not invent details. You are Alex Davis. The property is your single-family home, with no unit: 152 West 72nd Street, New York, NY 10023. Your callback number is +1 212 555 0188. Confirm only the correct full address and number when read back. Accept the first returned arrival window only after the agent reads the offer and asks for final agreement. You do not need diagnosis or optional equipment questions. You want service arranged quickly. Do not actually call emergency services. End after the final booking or truthful recorded priority next step. Your AC is not cooling and your elderly mother lives with you. Do not invent a diagnosis. Give contact details for a priority request; do not insist on a routine slot. Accept the earliest returned priority window and explicitly agree to book it.",
       "expected": {
         "details": {
           "service_type": "repair",
@@ -418,7 +417,6 @@
         "priority": "priority",
         "priority_before_address": true,
         "booking": true,
-        "no_membership_check": true,
         "service_first": {
           "report_contains": "my AC is not working",
           "opening_changes": {
@@ -430,10 +428,9 @@
           },
           "verbatim_quotes": true,
           "forbidden_question_terms": [
-            "anyone elderly",
-            "anyone at home elderly",
-            "anyone medically vulnerable",
-            "anyone at home especially vulnerable"
+            "higher risk",
+            "older adult",
+            "health condition"
           ]
         }
       }
@@ -467,62 +464,88 @@
           },
           "verbatim_quotes": true,
           "forbidden_question_terms": [
-            "anyone elderly",
-            "anyone at home elderly",
-            "anyone medically vulnerable",
-            "anyone at home especially vulnerable"
+            "higher risk",
+            "older adult",
+            "health condition"
           ]
         }
       },
       "opening": "I would like to schedule annual AC maintenance."
     },
     {
-      "id": "booking_sms_confirmation",
+      "id": "co_alarm",
       "fixture": "maya",
-      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. Stay after booking to choose your confirmation method; end after the confirmation status is acknowledged. Never actually call emergency services. You need annual AC maintenance. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. The property is residential in New York, NY. Your callback is +1 212 555 0188; explicitly confirm only that number when read back. You can attend any offered arrival window. Choose the first valid offered window and explicitly agree after the assistant asks to book that specific appointment. Equipment model and access notes are unknown; do not invent them. After booking request a text to the confirmed callback number, and consent to that exact number.",
+      "opening": "My carbon monoxide detector keeps going off.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. Start with: My carbon monoxide detector keeps going off. Do not volunteer an address or name. After the safety guidance, briefly acknowledge and end without continuing intake.",
       "expected": {
         "details": {
-          "service_type": "maintenance",
-          "address_confirmed": true,
-          "service_address": "152 West 72nd Street",
-          "service_unit": "4B",
-          "service_zip": "10023",
-          "callback_number": "+12125550188",
-          "callback_confirmed": true,
-          "service_city": "New York",
-          "service_state": "NY"
+          "safety_hazard": "carbon_monoxide_alarm"
         },
-        "priority": null,
-        "priority_before_address": false,
-        "membership": "active",
-        "booking": true,
-        "notification_channel": "sms"
-      },
-      "opening": "I would like to schedule annual AC maintenance."
+        "priority": "emergency",
+        "priority_before_address": true,
+        "safety_first": true,
+        "no_membership_check": true,
+        "booking": false
+      }
     },
     {
-      "id": "booking_email_confirmation",
-      "fixture": "maya",
-      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Confirm a correct complete address when read back; correct a wrong one. Stay after booking to choose your confirmation method; end after the confirmation status is acknowledged. Never actually call emergency services. You need annual AC maintenance. Your name is Maya Chen. Your home is 152 West 72nd Street, apartment 4B, ZIP 10023. You have an active maintenance plan. If asked whether you are Maya, say yes. The property is residential in New York, NY. Your callback is +1 212 555 0188; explicitly confirm only that number when read back. You can attend any offered arrival window. Choose the first valid offered window and explicitly agree after the assistant asks to book that specific appointment. Equipment model and access notes are unknown; do not invent them. After booking request email confirmation to maya@example.com. Confirm it only after the correct email address is read back; correct any mistake before consenting.",
+      "id": "no_heat_elderly_when_asked",
+      "fixture": "unknown",
+      "opening": "My heat isn't working.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. Start with: My heat isn't working. You are Jordan Lee. Your home is 410 East 89th Street, apartment 2C, New York, NY 10128. Your callback is +1 212 555 0188; confirm only that number. Do NOT mention who lives with you unless asked; if asked whether anyone at home is at higher risk, say your 84-year-old father lives with you. Accept the earliest offered window and explicitly agree when asked to book it.",
       "expected": {
         "details": {
-          "service_type": "maintenance",
-          "address_confirmed": true,
-          "service_address": "152 West 72nd Street",
-          "service_unit": "4B",
-          "service_zip": "10023",
-          "callback_number": "+12125550188",
-          "callback_confirmed": true,
-          "service_city": "New York",
-          "service_state": "NY"
+          "service_type": "repair",
+          "heating_unavailable": true,
+          "vulnerable_resident": true
         },
-        "priority": null,
-        "priority_before_address": false,
-        "membership": "active",
+        "priority": "priority",
         "booking": true,
-        "notification_channel": "email"
-      },
-      "opening": "I would like to schedule annual AC maintenance."
+        "service_first": {
+          "report_contains": "my heat isn't working",
+          "opening_changes": {
+            "heating_unavailable": true,
+            "service_type": "repair",
+            "service_category": "hvac",
+            "issue_summary": "__nonempty__"
+          },
+          "verbatim_quotes": true,
+          "required_question_terms": [
+            "higher risk",
+            "older adult",
+            "health condition"
+          ]
+        }
+      }
+    },
+    {
+      "id": "asks_for_person",
+      "fixture": "unknown",
+      "opening": "Can I just talk to a real person?",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. Start with: Can I just talk to a real person? You are Sam Rivera. If asked what's going on, say your AC is making a loud rattling noise but still cooling. Nobody at home is at higher risk. You do not want to book with the assistant; you want someone to call you back. Your callback is +1 212 555 0188; confirm only that number. If offered a transfer, accept it. End after the assistant tells you the next step.",
+      "expected": {
+        "followup": "caller_requested",
+        "booking": false
+      }
+    },
+    {
+      "id": "reschedule_request",
+      "fixture": "maya",
+      "opening": "I need to move my appointment to next week.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. Start with: I need to move my appointment to next week. Your name is Maya Chen. If asked whether you are Maya, say yes. You only want to reschedule an existing visit, not book a new one. Your callback is +1 212 555 0188; confirm only that number. Accept a callback from the office. End after the assistant tells you the next step.",
+      "expected": {
+        "followup": "caller_requested",
+        "booking": false
+      }
+    },
+    {
+      "id": "spanish_caller",
+      "fixture": "unknown",
+      "opening": "Hola, mi calefacci\u00f3n no funciona.",
+      "instructions": "You are role-playing a synthetic customer. Never actually call emergency services. Let the assistant greet first. You speak Spanish and only a little English. Start with: Hola, mi calefacci\u00f3n no funciona. Keep speaking Spanish; if the assistant speaks Spanish, answer its questions: you are Rosa Diaz, 35-20 82nd Street apartment 5A, Jackson Heights, Queens, NY 11372; your mother, 79, lives with you; your callback is the number you're calling from. If it offers a callback or someone who speaks Spanish, accept. End when the assistant gives a clear next step.",
+      "expected": {
+        "priority": "priority"
+      }
     }
   ],
   "profiles": [
@@ -569,7 +592,9 @@
   "deferred_coverage": [
     "real telephone routing and carrier degradation",
     "representative human accent and interruption review",
-    "optional geocoding/weather integration",
-    "routine >=20 trials and repeated critical release gate beyond authorized 5-chat batch"
+    "routine >=20 trials and repeated critical release gate beyond authorized 5-chat batch",
+    "live transfer (transferCall is never attached to simulations; verify with a real phone call)",
+    "SMS/email confirmations (parked in tools/optional until real delivery is configured)",
+    "non-English callers (STT is configured for English only)"
   ]
 }

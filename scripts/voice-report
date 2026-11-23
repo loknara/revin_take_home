@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Condense a voice simulation report: outcome, failed checks, cost, and the spoken transcript.
+
+    ./scripts/voice-report eval-results/voice/<batch>/report.json
+Response gaps (seconds between the caller finishing and the agent starting) are shown in
+brackets when the provider reports message timing.
+"""
+import json
+import sys
+
+
+def main(path):
+    report = json.load(open(path))
+    for r in report.get("results", []):
+        failed = [c["name"] for c in r.get("checks", []) if not c["passed"]]
+        usage = r.get("reported_target_call_usage", {})
+        print(f"\n=== {r.get('case')} / {r.get('profile')} → {r.get('status')}  cost=${usage.get('cost')}  duration={usage.get('duration')}")
+        if r.get("error"):
+            print("ERROR:", r["error"])
+        if failed:
+            print("failed checks:", ", ".join(failed))
+        judge = (r.get("provider_results") or {}).get("evaluations") or []
+        for e in judge:
+            if e.get("passed") is not True:
+                print("judge:", json.dumps({k: e.get(k) for k in ("passed", "extractedValue", "error", "reason", "explanation") if e.get(k) is not None})[:600])
+        conv = r.get("conversation") or {}
+        last_user_end = None
+        for m in conv.get("messages", []):
+            role = m.get("role")
+            start = m.get("secondsFromStart")
+            if role in ("user", "bot", "assistant"):
+                gap = ""
+                if role != "user" and last_user_end is not None and start is not None:
+                    gap = f" [{start - last_user_end:+.1f}s]"
+                who = "CALLER" if role == "user" else "AGENT "
+                print(f"{who}{gap}: {m.get('message') or m.get('content')}")
+                if role == "user" and start is not None:
+                    last_user_end = start + (m.get("duration", 0) or 0) / 1000
+            elif role == "tool_calls":
+                for t in m.get("toolCalls", []):
+                    fn = t.get("function", {})
+                    print(f"   [tool] {fn.get('name')} {str(fn.get('arguments'))[:220]}")
+            elif role == "tool_call_result":
+                print(f"   [result] {str(m.get('result'))[:160]}")
+
+
+if __name__ == "__main__":
+    for p in sys.argv[1:]:
+        main(p)

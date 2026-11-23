@@ -1,0 +1,3 @@
+#!/bin/sh
+# Hands-on test driver: ./scripts/chat start NAME --fixture maya | say NAME "..." | evidence NAME | close NAME
+cd "$(dirname "$0")/.." && exec uv run --env-file .env python -m revin_take_home.chat_driver "$@"
