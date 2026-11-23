@@ -33,7 +33,6 @@
         "decision",
         "caller_quote"
       ],
-      "title": "ConfirmNotification",
       "type": "object"
     }
   },

@@ -7,7 +7,6 @@
     "parameters": {
       "additionalProperties": false,
       "properties": {},
-      "title": "EmptyRequest",
       "type": "object"
     }
   },

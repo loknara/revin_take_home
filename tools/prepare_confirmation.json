@@ -24,26 +24,17 @@
           "type": "string"
         },
         "email": {
-          "anyOf": [
-            {
-              "maxLength": 254,
-              "minLength": 3,
-              "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Email"
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+          "description": "Caller-supplied email, required only for channel=email. Omit for SMS or none. Read back and confirm before queuing."
         }
       },
       "required": [
         "channel",
         "caller_quote"
       ],
-      "title": "PrepareConfirmation",
       "type": "object"
     }
   },
