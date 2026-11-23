@@ -15,7 +15,7 @@ import httpx
 
 from .audit import ROOT
 REPORT_ROOT = Path.cwd()
-ALLOWED_TOOLS = {'update_intake', 'start_membership_check', 'refresh_context', 'search_slots', 'propose_booking', 'confirm_booking', 'get_booking_status', 'request_followup', 'report_gas_emergency'}
+ALLOWED_TOOLS = {'update_intake', 'refresh_context', 'search_slots', 'propose_booking', 'confirm_booking', 'get_booking_status', 'request_followup', 'report_gas_emergency'}
 TARGET_FIELDS = {
     'name', 'firstMessage', 'firstMessageMode', 'model', 'voice', 'transcriber',
     'startSpeakingPlan', 'stopSpeakingPlan', 'backgroundDenoisingEnabled',
@@ -24,10 +24,12 @@ TARGET_FIELDS = {
 }
 
 
+# Load the versioned scenario suite from disk.
 def load_suite():
     return json.loads((ROOT/'evals/scenarios.json').read_text())
 
 
+# Expand selected cases and profiles into a run matrix.
 def selected(suite, case_ids, profile_ids):
     cases = [c for c in suite['cases'] if not case_ids or c['id'] in case_ids]
     profiles = [p for p in suite['profiles'] if p['id'] in (profile_ids or ['calm'])]
@@ -89,6 +91,7 @@ def build_payload(case, profile, live, session, backend_url, credential_id, mode
 def verify_database(case, evidence):
     """Unknown/missing evidence fails closed; a provider judge cannot override it."""
     checks = []
+    # Record a named pass/fail check.
     def check(name, ok): checks.append({'name':name,'passed':bool(ok)})
     rows=evidence.get('call_intakes',[]); check('one_saved_intake',len(rows)==1)
     state=rows[0] if len(rows)==1 else {}; details=state.get('details',{})
@@ -153,6 +156,8 @@ def verify_database(case, evidence):
     if details.get('callback_confirmed'):
         confirmations=[e for e in events if e.get('changes',{}).get('callback_confirmed') is True]
         check('separate_callback_confirmation',bool(confirmations) and all('callback_number' not in e['changes'] for e in confirmations))
+    if expected.get('inline_membership'):
+        check('no_background_membership_jobs',not evidence.get('enrichment_jobs',[]))
     if expected.get('async_overlap'):
         jobs=evidence.get('enrichment_jobs',[])
         overlapping=False
@@ -176,15 +181,19 @@ def verify_conversation(case, conversation):
         if len(calls)>1 and names & {'update_intake','propose_booking','confirm_booking','request_followup'}:
             unsafe_batches.append(names)
     checks.append({'name':'dependent_tools_not_batched','passed':not unsafe_batches})
-    if case['expected'].get('async_overlap'):
+    if case['expected'].get('async_overlap') or case['expected'].get('inline_membership'):
         delivered=False
         for m in messages:
             if m.get('role')=='tool_call_result':
                 try:
                     result=json.loads(m.get('result','{}'))
-                    delivered |= result.get('membership',{}).get('membership_status')==case['expected'].get('membership')
+                    matches = result.get('membership',{}).get('membership_status')==case['expected'].get('membership')
+                    delivered |= matches and (not case['expected'].get('inline_membership') or result.get('status')=='saved')
                 except (ValueError,TypeError,AttributeError):pass
         checks.append({'name':'membership_result_reached_model','passed':delivered})
+        if case['expected'].get('inline_membership'):
+            names={t.get('function',{}).get('name') for m in messages for t in m.get('toolCalls',[])}
+            checks.append({'name':'no_routine_membership_polling','passed':not names & {'start_membership_check','refresh_context'}})
     if case['expected'].get('safety_first'):
         reports=[i for i,m in enumerate(messages) if m.get('role')=='user' and 'gas' in m.get('message','').lower() and 'smell' in m.get('message','').lower()]
         safe=False
@@ -214,6 +223,7 @@ def safe_artifact(value):
     return value
 
 
+# Write redacted JSON and HTML reports with owner-only permissions.
 def write_report(directory, report):
     directory.mkdir(parents=True,exist_ok=True);directory.chmod(0o700)
     report=safe_artifact(report)
@@ -230,15 +240,18 @@ def write_report(directory, report):
 
 
 class Runner:
+    # Open authenticated clients for the backend and Vapi.
     def __init__(self, backend_url, *, transport=None):
         self.backend_url=backend_url.rstrip('/')
         if not self.backend_url.startswith('https://'):raise ValueError('Backend must use HTTPS')
         self.backend=httpx.Client(base_url=self.backend_url,headers={'Authorization':'Bearer '+os.environ['VAPI_WEBHOOK_SECRET']},timeout=20,transport=transport)
         self.vapi=httpx.Client(base_url='https://api.vapi.ai',headers={'Authorization':'Bearer '+os.environ['VAPI_API_KEY']},timeout=30,transport=transport)
 
+    # Close the backend and Vapi HTTP clients.
     def close(self):
         self.backend.close();self.vapi.close()
 
+    # Wait until the hosted backend and live tools match this config.
     def ready(self, timeout=300):
         deadline=time.monotonic()+timeout
         while True:
@@ -261,6 +274,7 @@ class Runner:
         if any(s.get('url')!=self.backend_url+'/vapi/tools' for s in servers):raise RuntimeError('Live tool backend differs from requested backend')
         return live,creds.pop()
 
+    # Start one paid simulation, then score database and conversation evidence.
     def run_one(self, case, profile, live, credential, mode, duration, directory):
         r=self.backend.post('/evaluation/sessions',json={'fixture_key':case['fixture'],'lookup_delay_ms':case.get('lookup_delay_ms',0)});r.raise_for_status();session=r.json()
         run_id=None
@@ -313,6 +327,7 @@ class Runner:
             except httpx.HTTPError:print('Session closure unconfirmed; it expires after 30 minutes.',flush=True)
 
 
+# Plan, check readiness, or run the selected evaluation batch.
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command',choices=['plan','doctor','run'],nargs='?',default='plan')

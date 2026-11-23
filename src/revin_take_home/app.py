@@ -4,8 +4,6 @@ Run: uv run --env-file .env uvicorn revin_take_home.app:create_app --factory
 Contract: https://docs.vapi.ai/api-reference/webhooks/server-message
 """
 
-import asyncio
-from contextlib import suppress
 import json
 import os
 import secrets
@@ -34,6 +32,7 @@ class Settings(BaseModel):
     supabase_secret_key: SecretStr | None = None
 
     @model_validator(mode="after")
+    # Require both Supabase settings together, and HTTPS when a URL is set.
     def check_supabase_config(self):
         if bool(self.supabase_url) != bool(self.supabase_secret_key):
             raise ValueError("Set both SUPABASE_URL and SUPABASE_SECRET_KEY")
@@ -42,6 +41,7 @@ class Settings(BaseModel):
         return self
 
     @classmethod
+    # Build settings from the process environment.
     def from_env(cls) -> "Settings":
         return cls(
             assistant_id=os.environ["VAPI_ASSISTANT_ID"],
@@ -126,10 +126,12 @@ class EvaluationToolEnvelope(BaseModel):
 
 
 class UnconfiguredDirectory:
+    # Fail closed when the customer directory is not configured.
     async def find_by_phone(self, number: str):
         raise LookupUnavailable("Customer directory not configured")
 
 
+# Wire stores and routes into a FastAPI app.
 def create_app(
     settings: Settings | None = None,
     directory: CustomerDirectory | None = None,
@@ -161,21 +163,18 @@ def create_app(
         directory = UnconfiguredDirectory()
 
     @asynccontextmanager
+    # Membership runs within the intake request; no background worker is needed.
     async def lifespan(app: FastAPI):
-        worker = asyncio.create_task(workflow_store.worker()) if workflow_store else None
         try:
             yield
         finally:
-            if worker:
-                worker.cancel()
-                with suppress(asyncio.CancelledError):
-                    await worker
             if db_client is not None:
                 await db_client.aclose()
 
     app = FastAPI(title="Summit Air demo — caller lookup and intake", lifespan=lifespan)
     bearer = HTTPBearer(auto_error=False)
 
+    # Reject requests whose bearer token does not match the webhook secret.
     async def authenticate(
         credentials: Annotated[
             HTTPAuthorizationCredentials | None, Depends(bearer)
@@ -191,20 +190,24 @@ def create_app(
             )
 
     @app.get("/health")
+    # Report that the process is serving requests.
     async def health() -> dict:
         return {"status": "ok"}
 
     @app.get("/version")
+    # Return the deployed prompt, tool, and pipeline fingerprint.
     async def version():
         return config_fingerprint()
 
     @app.post("/vapi/events", dependencies=[Depends(authenticate)])
+    # Persist the end-of-call reason or fail if the write is unconfirmed.
     async def call_ended(body: EndCallEnvelope):
         if audit_store is None or not await audit_store.call(body.message.call.id, body.message.endedReason):
             raise HTTPException(status_code=503, detail="Call outcome save unconfirmed")
         return {"status": "recorded"}
 
     @app.post("/vapi/tools", dependencies=[Depends(authenticate)])
+    # Validate and dispatch each tool call, then audit the outcome.
     async def tool_calls(body: ToolEnvelope) -> dict:
         message = body.message
         results = []
@@ -254,8 +257,6 @@ def create_app(
                         "status": "lookup_unavailable", "membership_status": "unknown",
                         "message": "Membership could not be verified. Do not say the caller is not a member or promise benefits.",
                     }
-            if workflow_store is not None and result.get("membership_lookup"):
-                workflow_store.wake.set()
             if audit_store is not None:
                 await audit_store.tool(message.call.id, tool.id, tool.function.name,
                     result.get('status','unknown'), round((time.monotonic()-started)*1000))
@@ -263,6 +264,7 @@ def create_app(
         return {"results": results}
 
     @app.post("/vapi/assistant-request", dependencies=[Depends(authenticate)])
+    # Look up the caller and return assistant overrides for this call.
     async def assistant_request(body: Envelope) -> dict:
         message = body.message
         context = await bootstrap_context(
@@ -282,6 +284,7 @@ def create_app(
             },
         }
 
+    # Load an evaluation session and optionally require it still be open.
     async def evaluation_session(session_id: UUID, *, require_open=False):
         if evaluation_store is None:
             raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
@@ -298,6 +301,7 @@ def create_app(
         return session
 
     @app.post("/evaluation/sessions", dependencies=[Depends(authenticate)])
+    # Create a fixture session and return its initial caller context.
     async def create_evaluation(body: NewEvaluationSession):
         if evaluation_store is None:
             raise HTTPException(status_code=503, detail="Evaluation storage unavailable")
@@ -310,6 +314,7 @@ def create_app(
                 "expires_at": session.expires_at, "caller_context": context.for_agent()}
 
     @app.post("/evaluation/sessions/{session_id}/tools", dependencies=[Depends(authenticate)])
+    # Run tool calls against a server-created evaluation fixture.
     async def evaluation_tools(session_id: UUID, body: EvaluationToolEnvelope):
         session = await evaluation_session(session_id, require_open=True)
         # Simulator chat/voice metadata is NOT inbound caller identity. Bind the
@@ -321,6 +326,7 @@ def create_app(
         )))
 
     @app.get("/evaluation/sessions/{session_id}", dependencies=[Depends(authenticate)])
+    # Return persisted evidence for one evaluation session.
     async def get_evaluation(session_id: UUID):
         session = await evaluation_session(session_id)
         try:
@@ -330,6 +336,7 @@ def create_app(
             raise HTTPException(status_code=503, detail="Evaluation evidence unavailable")
 
     @app.post("/evaluation/sessions/{session_id}/close", dependencies=[Depends(authenticate)])
+    # Close an evaluation session so further tool calls are rejected.
     async def close_evaluation(session_id: UUID):
         await evaluation_session(session_id)
         try:

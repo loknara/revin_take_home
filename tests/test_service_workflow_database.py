@@ -72,6 +72,13 @@ def test_optional_equipment_and_access_are_not_booking_blockers(workflow):
     assert r['readiness']['can_book']
 
 
+def test_confirmed_intake_no_longer_queues_membership(workflow):
+    call, result = workflow.ready()
+    assert result['status'] == 'saved'
+    assert 'membership_lookup' not in result
+    assert workflow.db.execute('select count(*) from public.enrichment_jobs where call_id=%s', (call,)).fetchone()[0] == 0
+
+
 def test_background_lookup_deduplicates_and_ignores_unrelated_notes(workflow):
     call,_=workflow.ready()
     first=workflow.rpc('start_membership_check',call,2)

@@ -3,7 +3,7 @@
   "async": false,
   "function": {
     "name": "refresh_context",
-    "description": "Read current saved intake, readiness, membership and background lookup status. Use after independent intake while lookup runs, after corrections/conflicts, or once before booking. Pending is not a result. No fabricated waiting questions.",
+    "description": "Recover current saved intake, readiness and membership after a revision conflict or uncertain save. Normal intake responses already include membership; do not poll or call this routinely before booking. For uncertain booking outcomes use get_booking_status.",
     "parameters": {
       "type": "object",
       "additionalProperties": false,

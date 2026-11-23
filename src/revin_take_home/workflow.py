@@ -1,4 +1,4 @@
-"""Call-scoped business tools and a supervised, leased database worker."""
+"""Call-scoped business tools and legacy job helpers for compatibility tests."""
 import asyncio
 from contextlib import suppress
 import logging
@@ -42,7 +42,7 @@ class FollowupRequest(RevisionRequest):
 
 
 WORKFLOW_SCHEMAS = {
-    'start_membership_check': RevisionRequest, 'refresh_context': EmptyRequest,
+    'refresh_context': EmptyRequest,
     'search_slots': RevisionRequest, 'propose_booking': ProposeBooking,
     'confirm_booking': ConfirmBooking, 'get_booking_status': EmptyRequest,
     'request_followup': FollowupRequest, 'report_gas_emergency': GasEmergency,
@@ -55,10 +55,12 @@ class WorkflowUnavailable(Exception):
 
 
 class WorkflowStore:
+    # Keep the Supabase client and a wake signal for the worker.
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
         self.wake = asyncio.Event()
 
+    # Call a workflow RPC and raise if the response is unusable.
     async def rpc(self, name, payload):
         try:
             r = await self.client.post('rpc/'+name, json=payload, timeout=3)
@@ -67,6 +69,7 @@ class WorkflowStore:
         except (httpx.HTTPError, ValueError) as exc:
             raise WorkflowUnavailable from exc
 
+    # Run one tool RPC and hide the originating number from the result.
     async def execute(self, name, call_id, operation_id, request):
         payload = {'p_call_id': call_id, **{'p_'+k: v for k,v in request.model_dump(mode='json').items()}}
         if name == 'report_gas_emergency':payload['p_operation_id']=operation_id
@@ -79,6 +82,7 @@ class WorkflowStore:
             self.wake.set()
         return result
 
+    # Claim and finish a single enrichment job, if one is waiting.
     async def work_once(self):
         job = await self.rpc('claim_enrichment_job', {})
         if not job:
@@ -87,7 +91,7 @@ class WorkflowStore:
         return True
 
     async def worker(self):
-        """Supervised by app lifespan. DB deadlines/leases survive restarts.
+        """Legacy worker; no longer started by the application lifespan.
 
         No caller data in logs. A failed completion leaves a lease for recovery;
         two attempts / 15s deadline prevent an endless retry queue.

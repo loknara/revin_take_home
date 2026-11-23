@@ -1,9 +1,14 @@
 """Incremental intake: model-reported facts, scoped to provider call metadata."""
 
+import asyncio
 from typing import Annotated, Literal, Protocol, Self
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .membership import MembershipUnavailable, ResolveMembership, SupabaseMembershipStore
+
+MEMBERSHIP_TIMEOUT_SECONDS = 1.0
 
 ShortText = Annotated[str, Field(min_length=1, max_length=500, pattern=r"\S")]
 RiskFact = bool | Literal["unknown"]
@@ -37,6 +42,7 @@ class IntakeChanges(BaseModel):
     gas_smell_reported: RiskFact | None = None
 
     @model_validator(mode="after")
+    # Reject empty patches, null clears, and confirmations bundled with the value.
     def check_patch(self) -> Self:
         if not self.model_fields_set:
             raise ValueError("Provide at least one changed field")
@@ -60,6 +66,7 @@ class UpdateIntake(BaseModel):
     confirmation_callback: ShortText | None = None
 
     @model_validator(mode="after")
+    # Require the exact address or callback when confirming it.
     def check_confirmation(self) -> Self:
         if self.changes.address_confirmed is True and not self.confirmation_address:
             raise ValueError("Confirmation must identify the exact saved address")
@@ -73,6 +80,7 @@ class IntakeUnavailable(Exception):
 
 
 class IntakeStore(Protocol):
+    # Persist one intake revision for a call.
     async def update(
         self, call_id: str, operation_id: str, originating_number: str | None,
         request: UpdateIntake,
@@ -80,9 +88,11 @@ class IntakeStore(Protocol):
 
 
 class SupabaseIntakeStore:
+    # Keep the Supabase client used for intake writes.
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
 
+    # Save one intake revision and shape the result for the model.
     async def update(self, call_id, operation_id, originating_number, request):
         try:
             response = await self.client.post(
@@ -125,6 +135,43 @@ class SupabaseIntakeStore:
                 result["missing_fields"] = result["readiness"]["missing_fields"]
                 result["eligibility"] = result["readiness"]["scope"]
             result.setdefault("booking_status", "not_checked")
+            await self._include_membership(call_id, result)
             return result
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             raise IntakeUnavailable("Intake save could not be confirmed") from exc
+
+    async def _include_membership(self, call_id: str, result: dict) -> None:
+        """Enrich a committed save without making membership a booking dependency.
+
+        The save response includes a database-validated, dependency-aware cache.
+        Only a missing/stale result needs another query. Lookup failures must not
+        turn an already committed intake save into save_unconfirmed.
+        """
+        state = result["state"]
+        details = state["details"]
+        readiness = result.get("readiness", {})
+        if not (
+            result["status"] == "saved"
+            and state["triage"].get("level") == "routine"
+            and readiness.get("scope") == "eligible"
+            and readiness.get("coverage") == "covered"
+            and details.get("address_confirmed") is True
+            and details.get("caller_name", "").strip()
+        ):
+            return
+        cached = result.get("membership", {})
+        if cached and cached.get("status") != "not_checked_for_current_details":
+            return
+        try:
+            # Separate RPC: the intake is committed before this bounded lookup.
+            # The resolver validates revision under a lock, including corrections
+            # arriving between the save and this request.
+            async with asyncio.timeout(MEMBERSHIP_TIMEOUT_SECONDS):
+                result["membership"] = await SupabaseMembershipStore(self.client).resolve(
+                    call_id, ResolveMembership(expected_revision=state["revision"])
+                )
+        except (TimeoutError, MembershipUnavailable):
+            result["membership"] = {
+                "status": "lookup_unavailable", "membership_status": "unknown",
+                "verification_required": True,
+            }

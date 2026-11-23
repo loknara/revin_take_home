@@ -24,7 +24,7 @@ def test_background_queue_returns_pending_and_wakes_worker():
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('name,args', [('refresh_context',{'call_id':'other'}),('start_membership_check',{'expected_revision':True})])
+@pytest.mark.parametrize('name,args', [('refresh_context',{'call_id':'other'}),('search_slots',{'expected_revision':True})])
 def test_workflow_tools_reject_scope_override(name,args):
     app=TestClient(create_app(Settings(assistant_id='c1d4d1d8-b2e4-48b9-9ffe-ca4bbea2dd43',webhook_secret=SECRET)))
     body=envelope(args);body['message']['toolCallList'][0]['function']['name']=name
