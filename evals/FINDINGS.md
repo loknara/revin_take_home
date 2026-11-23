@@ -34,6 +34,11 @@ passes weren't rerun after these fixes).
 
 ### Round 3 fix list
 
+**Status (2026-11-23): all fixed in code, not yet re-run in voice.** R9 `5eadd02` (readback
+check against the conversation Vapi sends with each tool call; confirmed present in a real
+payload), R10 + R13 `bbbbf8e` (chat-checked: "uncomfortable" stays routine), R11 `4636670`
+(new migration `20261125000600`), R12 `87db340` (scenario wording). 473 tests pass.
+
 | # | Severity | Issue | Fix |
 |---|---|---|---|
 | R9 | **blocker** | **Confirmations still saved without a readback** (O1 again). The guard only checks how the quote is worded and when it arrives; a real caller sentence about something else ("Please have someone call me", "Apartment 4B…") still confirms the address and number. | Backend: Vapi's tool-call webhook can carry the conversation so far (`message.artifact.messages`; verify it's present). Accept `address_confirmed` / `callback_confirmed` only if the agent's previous turn actually read back that street / those last four digits. Prompt: for a callback request, read the number back before `request_followup`. |
