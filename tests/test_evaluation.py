@@ -349,3 +349,42 @@ def test_gas_action_requires_observed_pre_execution_guidance():
     assert not all(
         c["passed"] for c in verify_conversation(case, {"messages": messages})
     )
+
+
+def test_time_in_vapis_queue_does_not_count_against_the_call(monkeypatch, tmp_path):
+    """A run still queued past the call deadline isn't abandoned until the queue allowance."""
+    import itertools
+
+    from revin_take_home import evaluation
+
+    monkeypatch.setenv("VAPI_API_KEY", "test")
+    monkeypatch.setenv("VAPI_WEBHOOK_SECRET", SECRET)
+    sid = str(uuid4())
+    polls = []
+    clock = itertools.count(0, 100)
+    monkeypatch.setattr(evaluation.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(evaluation.time, "sleep", lambda s: None)
+    monkeypatch.setattr(evaluation, "QUEUE_ALLOWANCE_SECONDS", 1000)
+
+    def handle(req):
+        if req.url.path == "/evaluation/sessions":
+            return httpx.Response(200, json={"session_id": sid, "call_id": "eval_" + sid, "caller_context": {}})
+        if req.url.path == "/eval/simulation/run":
+            return httpx.Response(201, json={"id": "r1", "status": "queued"})
+        if req.url.path == "/eval/simulation/run/r1":
+            polls.append(1)
+            return httpx.Response(200, json={"id": "r1", "status": "queued"})
+        if req.url.path.endswith("/close"):
+            return httpx.Response(200, json={"status": "closed"})
+        raise AssertionError("Unexpected request " + str(req.url))
+
+    runner = Runner("https://demo.invalid", transport=httpx.MockTransport(handle))
+    case, profile = selected(load_suite(), ["active_member"], ["calm"])[0]
+    live = {"model": {"provider": "openai", "model": "gpt-4.1"}, "transcriber": {"provider": "soniox"}}
+    try:
+        with pytest.raises(TimeoutError, match="still queued"):
+            # duration 60 → the old call deadline (60+180 s) would have fired after ~3 polls
+            runner.run_one(case, profile, live, "credential", "voice", 60, tmp_path)
+    finally:
+        runner.close()
+    assert len(polls) >= 5

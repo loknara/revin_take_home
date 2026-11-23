@@ -49,6 +49,14 @@ TARGET_FIELDS = {
 
 
 # Load the versioned scenario suite from disk.
+
+# Longest wait for a simulation to leave Vapi's queue before giving up on it.
+QUEUE_ALLOWANCE_SECONDS = 900
+
+
+class OutOfCredit(RuntimeError):
+    """Vapi refused a paid start with HTTP 402."""
+
 def load_suite():
     return json.loads((ROOT / "evals/scenarios.json").read_text())
 
@@ -699,6 +707,8 @@ class Runner:
             )
             # The ONLY paid start operation. Never retry a POST whose outcome is uncertain.
             r = self.vapi.post("/eval/simulation/run", json=payload)
+            if r.status_code == 402:
+                raise OutOfCredit("Vapi returned HTTP 402: the account is out of credit")
             if not r.is_success:
                 raise RuntimeError(
                     "Vapi start failed with HTTP "
@@ -712,9 +722,18 @@ class Runner:
                 json.dumps({"run_id": run_id, "session_id": session["session_id"]})
             )
             marker.chmod(0o600)
-            deadline = time.monotonic() + duration + 180
+            # Time waiting in Vapi's queue doesn't count against the call: abandoning a
+            # queued run doesn't cancel it, it may still run and bill later.
+            queued_deadline = time.monotonic() + QUEUE_ALLOWANCE_SECONDS
+            deadline = None
             while run.get("status") != "ended":
-                if time.monotonic() >= deadline:
+                if run.get("status") == "queued":
+                    if time.monotonic() >= queued_deadline:
+                        raise TimeoutError("Simulation still queued at Vapi after "
+                                           + str(QUEUE_ALLOWANCE_SECONDS) + " s")
+                elif deadline is None:
+                    deadline = time.monotonic() + duration + 180
+                elif time.monotonic() >= deadline:
                     raise TimeoutError("Simulation exceeded polling deadline")
                 print("Simulation", run_id, run.get("status"), flush=True)
                 time.sleep(5)
@@ -978,6 +997,15 @@ def main(argv=None):
                     args.output,
                     voice_settings,
                 )
+            except OutOfCredit as exc:
+                # Every later start would fail the same way; stop the batch.
+                report["results"].append(
+                    {"case": case["id"], "profile": profile["id"], "status": "blocked",
+                     "error": str(exc) + "; top up Vapi before retrying"}
+                )
+                write_report(args.output, report)
+                print(str(exc) + "; stopping this batch.", flush=True)
+                break
             except Exception as exc:
                 diagnostic = (
                     str(exc)
