@@ -7,15 +7,8 @@
     "parameters": {
       "type": "object",
       "additionalProperties": false,
-      "properties": {
-        "bot_say": {
-          "type": "string",
-          "description": "Spoken to the caller while this runs: one brief, natural acknowledgment (2-6 words) that fits this moment, e.g. \"Let me pull that up\". Vary it from your last one. In the caller's current language. No trailing punctuation."
-        }
-      },
-      "required": [
-        "bot_say"
-      ]
+      "properties": {},
+      "required": []
     }
   },
   "messages": [

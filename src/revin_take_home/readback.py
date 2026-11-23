@@ -95,3 +95,26 @@ def unheard_confirmations(artifact, changes, confirmation_address, confirmation_
     if changes.get("callback_confirmed") is True and not number_was_read(agent_text, confirmation_callback):
         unheard.append("callback_confirmed")
     return unheard
+
+
+# A booking needs an offer the caller heard (voice testing, 2026-11-23): with spoken fillers
+# the model twice booked on "Sure. Thank you." without ever saying the window or asking.
+WINDOW_WORDS = re.compile(
+    r"\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|hoy|mañana|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b",
+    re.I,
+)
+TIME_WORDS = re.compile(
+    r"\b(between|from|noon|morning|afternoon|a\.?m\.?|p\.?m\.?|entre|mediodía|mediodia|tarde)\b|\d",
+    re.I,
+)
+
+
+def offer_was_heard(artifact):
+    """The agent's latest turn said a day and a time (the window it is asking about).
+
+    None when the conversation isn't available (the check is then skipped)."""
+    agent_text = recent_agent_text(artifact, turns=1)
+    if agent_text is None:
+        return None
+    return bool(WINDOW_WORDS.search(agent_text) and TIME_WORDS.search(agent_text))

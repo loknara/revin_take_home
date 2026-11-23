@@ -34,7 +34,7 @@ from .caller_context import (
 )
 from .supabase_directory import SupabaseDirectory, supabase_client
 from .intake import IntakeStore, IntakeUnavailable, SupabaseIntakeStore, UpdateIntake
-from .readback import unheard_confirmations
+from .readback import offer_was_heard, unheard_confirmations
 from .evaluation_api import (
     NewEvaluationSession,
     EvaluationUnavailable,
@@ -376,6 +376,12 @@ def create_app(
             if name in WORKFLOW_SCHEMAS:
                 if workflow_store is None:
                     raise WorkflowUnavailable
+                if (
+                    name == "confirm_booking"
+                    and request.decision == "accepted"
+                    and offer_was_heard(message.artifact) is False
+                ):
+                    return {"status": "offer_not_heard"}, request_args
                 result = await workflow_store.execute(
                     name,
                     message.call.id,

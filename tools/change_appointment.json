@@ -11,8 +11,7 @@
         "expected_revision",
         "appointment_id",
         "action",
-        "caller_quote",
-        "bot_say"
+        "caller_quote"
       ],
       "properties": {
         "expected_revision": {
@@ -34,10 +33,6 @@
         "caller_quote": {
           "type": "string",
           "description": "The caller's own words agreeing to move or cancel this visit."
-        },
-        "bot_say": {
-          "type": "string",
-          "description": "Spoken to the caller while this runs: one brief, natural acknowledgment (2-6 words) that fits this moment, e.g. \"Okay, one moment\". Vary it from your last one. In the caller's current language. No trailing punctuation."
         }
       }
     }

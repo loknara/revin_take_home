@@ -35,6 +35,7 @@ FAILURES = {
     "save_unconfirmed",
     "outcome_unconfirmed",
     "unsupported_tool",
+    "offer_not_heard",
 }
 # Final answers rather than errors: they get a hint, but retrying them is not a loop.
 OUTCOMES = {
@@ -86,6 +87,7 @@ HINTS = {
     "already_booked": "This call already has a booking: call get_booking_status and read that window instead of booking again.",
     "no_caller_id": "Without caller ID the visit can't be looked up: offer a callback (request_followup with reason booking_change) after saving their name and a confirmed number.",
     "none_found": "No upcoming visit was booked from this number: say so, and offer a callback (request_followup with reason booking_change) after saving their name and a confirmed number.",
+    "offer_not_heard": "Not booked: the caller hasn't heard the window. Say it now (\"The earliest I can get a technician there is [spoken]. Should I book that?\"), END YOUR TURN, and book only after they say yes to it.",
     "not_found": "That visit isn't one of this caller's upcoming visits: call find_my_appointment again and use an appointment_id from its result.",
 }
 for _status in RETRY_STATUSES:

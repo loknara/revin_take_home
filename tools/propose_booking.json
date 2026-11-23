@@ -21,17 +21,12 @@
           "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
           "title": "Slot Id",
           "type": "string"
-        },
-        "bot_say": {
-          "type": "string",
-          "description": "Spoken to the caller while this runs: one brief, natural acknowledgment (2-6 words) that fits this moment, e.g. \"Let me check that one\". Vary it from your last one. In the caller's current language. No trailing punctuation."
         }
       },
       "required": [
         "expected_revision",
         "search_id",
-        "slot_id",
-        "bot_say"
+        "slot_id"
       ],
       "type": "object"
     }

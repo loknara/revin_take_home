@@ -150,3 +150,56 @@ def test_webhook_saves_the_heard_part_and_refuses_the_rest():
     saved = store.received[0]
     assert saved.changes.address_confirmed is True and saved.changes.callback_confirmed is None
     assert saved.confirmation_callback is None
+
+
+# A booking needs an offer the caller heard -----------------------------------------------
+
+from revin_take_home.readback import offer_was_heard  # noqa: E402
+
+OFFERED = convo(
+    ("bot", "The earliest I can get a technician there is tomorrow, Tuesday, November twenty-fourth, between nine and noon. Should I book that?"),
+    ("user", "Yes, book it."),
+)
+FILLER_ONLY = convo(
+    ("bot", "Just to confirm, that's 152 West 72nd Street and 212-555-0188?"),
+    ("user", "Yes, that's correct."),
+    ("bot", "Let me see what's open."),
+    ("user", "Sure. Thank you."),
+)
+
+
+def test_offer_heard_only_when_the_last_turn_stated_a_window():
+    assert offer_was_heard(OFFERED) is True
+    assert offer_was_heard(FILLER_ONLY) is False
+    assert offer_was_heard(convo(("bot", "Lo más pronto es mañana, martes, entre las nueve y el mediodía. ¿Lo reservo?"), ("user", "Sí"))) is True
+    assert offer_was_heard(None) is None
+
+
+class Workflow:
+    def __init__(self):
+        self.calls = []
+
+    async def execute(self, name, call_id, operation_id, request, originating_number=None):
+        self.calls.append(name)
+        return {"status": "booked"}
+
+
+def confirm(artifact, decision="accepted"):
+    workflow = Workflow()
+    app = TestClient(create_app(Settings(assistant_id="c1d4d1d8-b2e4-48b9-9ffe-ca4bbea2dd43", webhook_secret=SECRET),
+                                workflow_store=workflow))
+    r = app.post("/vapi/tools", headers={"Authorization": "Bearer " + SECRET}, json={"message": {
+        "type": "tool-calls", "call": {"type": "inboundPhoneCall", "id": "c1"}, "artifact": artifact,
+        "toolCallList": [{"id": "op", "function": {"name": "confirm_booking", "arguments": {
+            "expected_revision": 3, "proposal_id": "11111111-1111-4111-8111-111111111111",
+            "decision": decision, "caller_quote": "Sure. Thank you."}}}]}})
+    return json.loads(r.json()["results"][0]["result"]), workflow.calls
+
+
+def test_booking_on_a_thank_you_after_a_filler_is_refused():
+    result, calls = confirm(FILLER_ONLY)
+    assert result["status"] == "offer_not_heard" and "Should I book that" in result["hint"]
+    assert calls == []
+    assert confirm(OFFERED)[0]["status"] == "booked"
+    assert confirm(FILLER_ONLY, decision="declined")[0]["status"] == "booked"  # declines aren't gated
+    assert confirm(None)[0]["status"] == "booked"  # no conversation: check skipped
