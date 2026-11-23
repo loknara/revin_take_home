@@ -348,7 +348,7 @@
     {
       "id": "declined_offer",
       "fixture": "maya",
-      "instructions": "Role-play only; never actually call emergency services. Let the assistant greet first. You are Maya Chen seeking annual maintenance for your home at 152 West 72nd Street, apartment 4B, New York NY 10023. Callback +1 212 555 0188. Confirm correct address and callback. Select the first available window. At the FINAL booking confirmation, say: No, please do not book anything. I will call back. End after acknowledgment.",
+      "instructions": "Role-play only; never actually call emergency services. Let the assistant greet first. You are Maya Chen seeking annual maintenance for your home at 152 West 72nd Street, apartment 4B, New York NY 10023. Callback +1 212 555 0188. Confirm correct address and callback. When the assistant offers a window and asks whether to book it, say: No, please do not book anything. I will call back. End after acknowledgment.",
       "expected": {
         "details": {
           "address_confirmed": true
@@ -374,7 +374,7 @@
       "id": "repair_service_first",
       "fixture": "unknown",
       "opening": "My AC is not working.",
-      "instructions": "You are a synthetic customer. Answer only with these facts and do not invent details. You are Alex Davis. The property is your single-family home, with no unit: 152 West 72nd Street, New York, NY 10023. Your callback number is +1 212 555 0188. Confirm only the correct full address and number when read back. Accept the first returned arrival window only after the agent reads the offer and asks for final agreement. You do not need diagnosis or optional equipment questions. You want service arranged quickly. Do not actually call emergency services. End after the final booking or truthful recorded priority next step. The AC does not cool. Nobody is elderly or medically vulnerable. You want the earliest appointment, not a membership discussion.",
+      "instructions": "You are a synthetic customer. Answer only with these facts and do not invent details. You are Alex Davis. The property is your single-family home, with no unit: 152 West 72nd Street, New York, NY 10023. Your callback number is +1 212 555 0188. Confirm only the correct full address and number when read back. When the agent offers an arrival window and asks whether to book it, say yes and stay on the line until it confirms the booking. Do not hang up before that. You do not need diagnosis or optional equipment questions. You want service arranged quickly. Do not actually call emergency services. End after the final booking or truthful recorded priority next step. The AC does not cool. Nobody is elderly or medically vulnerable. You want the earliest appointment, not a membership discussion.",
       "expected": {
         "details": {
           "service_type": "repair",
@@ -407,7 +407,7 @@
       "id": "priority_service_first",
       "fixture": "unknown",
       "opening": "My AC is not working, and my elderly mother lives here.",
-      "instructions": "You are a synthetic customer. Answer only with these facts and do not invent details. You are Alex Davis. The property is your single-family home, with no unit: 152 West 72nd Street, New York, NY 10023. Your callback number is +1 212 555 0188. Confirm only the correct full address and number when read back. Accept the first returned arrival window only after the agent reads the offer and asks for final agreement. You do not need diagnosis or optional equipment questions. You want service arranged quickly. Do not actually call emergency services. End after the final booking or truthful recorded priority next step. Your AC is not cooling and your elderly mother lives with you. Do not invent a diagnosis. Give contact details for a priority request; do not insist on a routine slot. Accept the earliest returned priority window and explicitly agree to book it.",
+      "instructions": "You are a synthetic customer. Answer only with these facts and do not invent details. You are Alex Davis. The property is your single-family home, with no unit: 152 West 72nd Street, New York, NY 10023. Your callback number is +1 212 555 0188. Confirm only the correct full address and number when read back. When the agent offers an arrival window and asks whether to book it, say yes and stay on the line until it confirms the booking. Do not hang up before that. You do not need diagnosis or optional equipment questions. You want service arranged quickly. Do not actually call emergency services. End after the final booking or truthful recorded priority next step. Your AC is not cooling and your elderly mother lives with you. Do not invent a diagnosis. Give contact details for a priority request; do not insist on a routine slot. Accept the earliest returned priority window and explicitly agree to book it.",
       "expected": {
         "details": {
           "service_type": "repair",
@@ -534,7 +534,7 @@
       "opening": "I need to move my appointment to next week.",
       "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. Start with: I need to move my appointment to next week. Your name is Maya Chen. If asked whether you are Maya, say yes. You only want to reschedule an existing visit, not book a new one. Your callback is +1 212 555 0188; confirm only that number. Accept a callback from the office. End after the assistant tells you the next step.",
       "expected": {
-        "followup": "caller_requested",
+        "followup": "booking_change",
         "booking": false
       }
     },
