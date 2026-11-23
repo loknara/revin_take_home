@@ -34,6 +34,7 @@ from .caller_context import (
 )
 from .supabase_directory import SupabaseDirectory, supabase_client
 from .intake import IntakeStore, IntakeUnavailable, SupabaseIntakeStore, UpdateIntake
+from .readback import unheard_confirmations
 from .evaluation_api import (
     NewEvaluationSession,
     EvaluationUnavailable,
@@ -128,6 +129,8 @@ class ToolCall(BaseModel):
 class ToolMessage(CallMessage):
     type: Literal["tool-calls"]
     toolCallList: list[ToolCall] = Field(min_length=1, max_length=5)
+    # The conversation so far; used only to check a readback happened (finding R9).
+    artifact: dict | None = None
 
 
 class ToolEnvelope(BaseModel):
@@ -147,6 +150,7 @@ class EndCallEnvelope(BaseModel):
 class EvaluationToolMessage(BaseModel):
     type: Literal["tool-calls"]
     toolCallList: list[ToolCall] = Field(min_length=1, max_length=5)
+    artifact: dict | None = None
 
 
 class EvaluationToolEnvelope(BaseModel):
@@ -291,6 +295,24 @@ def create_app(
 
     retries = RetryTracker()
 
+    async def refuse_unheard(message, tool, request_args, unheard):
+        """Refuse confirmations the caller never heard read back; still save other facts."""
+        changes = {k: v for k, v in request_args["changes"].items() if k not in unheard}
+        refusal = {"status": "needs_caller_yes", "reason": "not_read_back", "unheard": unheard}
+        if not changes:
+            return refusal
+        args = {k: v for k, v in request_args.items() if k != "changes"} | {"changes": changes}
+        if "address_confirmed" in unheard:
+            args.pop("confirmation_address", None)
+        if "callback_confirmed" in unheard:
+            args.pop("confirmation_callback", None)
+        result = await intake_store.update(
+            message.call.id, tool.id, message.originating_number(), UpdateIntake.model_validate(args)
+        )
+        if result.get("status") == "saved":
+            return result | refusal | {"saved_other_changes": True}
+        return result
+
     async def run_tool(message: ToolMessage, tool: ToolCall) -> tuple[dict, dict | None]:
         """Validate and run one tool call. Returns (result, parsed arguments)."""
         name = tool.function.name
@@ -336,6 +358,14 @@ def create_app(
             else:
                 if intake_store is None:
                     raise IntakeUnavailable("Intake storage not configured")
+                unheard = unheard_confirmations(
+                    message.artifact,
+                    request_args.get("changes") or {},
+                    request.confirmation_address,
+                    request.confirmation_callback,
+                )
+                if unheard:
+                    return await refuse_unheard(message, tool, request_args, unheard), request_args
                 result = await intake_store.update(
                     message.call.id, tool.id, message.originating_number(), request
                 )
@@ -482,6 +512,7 @@ def create_app(
                     call=Call(id=session.call_id, type="inboundPhoneCall"),
                     customer=Customer(number=session.originating_number),
                     toolCallList=body.message.toolCallList,
+                    artifact=body.message.artifact,
                 )
             )
         )

@@ -166,6 +166,8 @@ def _intake_guidance(result, request):
     wants_address = changes.get("address_confirmed") is True
     wants_callback = changes.get("callback_confirmed") is True
     expected = _saved_values(details, wants_address, wants_callback)
+    if not expected:  # refused before saving: echo what the agent meant to confirm
+        expected = {k: request[k] for k in ("confirmation_address", "confirmation_callback") if (request or {}).get(k)}
     if status == "confirmation_mismatch":
         missing = []
         if wants_address and not (request or {}).get("confirmation_address"):
@@ -180,7 +182,11 @@ def _intake_guidance(result, request):
             hint = "Your readback doesn't match what is saved: read expected back to the caller, and if they say yes send it exactly as shown in expected."
         return missing, expected, hint
     if status == "needs_caller_yes":
-        if result.get("saved_other_changes"):
+        if result.get("reason") == "not_read_back":
+            parts = {"address_confirmed": "address", "callback_confirmed": "number"}
+            what = " and ".join(parts[k] for k in result.get("unheard", []) if k in parts) or "details"
+            hint = f"The caller hasn't heard the {what} read back: read it to them now (a number digit by digit), END YOUR TURN, and confirm only after they say yes."
+        elif result.get("saved_other_changes"):
             hint = "The new details are saved but not confirmed: read expected back to the caller now, END YOUR TURN, and confirm only after they say yes."
         elif result.get("reason") == "quote_is_readback":
             hint = "caller_quote must be the caller's own answer, not your readback: read expected back, END YOUR TURN, and confirm only after the caller says yes."
