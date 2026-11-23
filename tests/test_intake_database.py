@@ -196,7 +196,14 @@ def test_triage_uses_reported_facts_and_unknown_is_not_false(
         assert result["priority_request"]["status"] == "recorded"
         assert result["priority_request"]["notification_status"] == "not_connected"
         # No name, address, membership or eligibility was needed to save the case.
-        assert "service_address" not in result["state"]["details"]
+        # Emergencies get the caller-ID callback and the on-file address for the
+        # dispatcher, never as confirmed facts (O7).
+        details = result["state"]["details"]
+        if level == "emergency":
+            assert details["callback_confirmed"] is False
+            assert details["address_confirmed"] is False
+        else:
+            assert "service_address" not in details
     else:
         assert result["priority_request"] is None
 

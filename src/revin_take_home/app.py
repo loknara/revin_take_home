@@ -24,6 +24,7 @@ from .weather import WeatherWorker, stop_worker
 from .notifications import NotificationSender, NotificationWorker
 from .audit import AuditStore, config_fingerprint
 from .workflow import WorkflowStore, WorkflowUnavailable, WORKFLOW_SCHEMAS
+from .guidance import RetryTracker, normalize_update_intake, shape
 from .caller_context import (
     CustomerDirectory,
     LookupUnavailable,
@@ -37,6 +38,11 @@ from .evaluation_api import (
     EvaluationUnavailable,
     SupabaseEvaluationStore,
 )
+
+
+# Vapi waits about 10 s for a tool webhook. Stay well inside it (finding O11).
+TOOL_TIMEOUT_SECONDS = 4.5
+BATCH_BUDGET_SECONDS = 8.0
 
 
 class Settings(BaseModel):
@@ -267,58 +273,98 @@ def create_app(
             raise HTTPException(status_code=503, detail="Call outcome save unconfirmed")
         return {"status": "recorded"}
 
+    retries = RetryTracker()
+
+    async def run_tool(message: ToolMessage, tool: ToolCall) -> tuple[dict, dict | None]:
+        """Validate and run one tool call. Returns (result, parsed arguments)."""
+        name = tool.function.name
+        if name not in {"update_intake", *WORKFLOW_SCHEMAS}:
+            return {"status": "unsupported_tool"}, None
+        schema = {"update_intake": UpdateIntake, **WORKFLOW_SCHEMAS}[name]
+        arguments, moved = tool.function.arguments, []
+        if isinstance(arguments, str):
+            try:
+                parsed = json.loads(arguments)
+            except ValueError:
+                parsed = None
+        else:
+            parsed = arguments
+        if name == "update_intake" and isinstance(parsed, dict):
+            parsed, moved = normalize_update_intake(parsed)
+        try:
+            request = (
+                schema.model_validate_json(arguments)
+                if isinstance(arguments, str) and not moved
+                else schema.model_validate(parsed)
+            )
+        except ValidationError as exc:
+            return {
+                "status": "invalid_arguments",
+                "errors": [
+                    {"field": list(e["loc"]), "message": e["msg"], "type": e["type"]}
+                    for e in exc.errors(include_input=False, include_url=False)
+                ],
+            }, parsed if isinstance(parsed, dict) else None
+        request_args = request.model_dump(mode="json", exclude_unset=True)
+        try:
+            if name in WORKFLOW_SCHEMAS:
+                if workflow_store is None:
+                    raise WorkflowUnavailable
+                result = await workflow_store.execute(
+                    name,
+                    message.call.id,
+                    tool.id,
+                    request,
+                    originating_number=message.originating_number(),
+                )
+            else:
+                if intake_store is None:
+                    raise IntakeUnavailable("Intake storage not configured")
+                result = await intake_store.update(
+                    message.call.id, tool.id, message.originating_number(), request
+                )
+                if moved:
+                    result["moved_into_place"] = moved
+        except WorkflowUnavailable:
+            result = {
+                "status": "outcome_unconfirmed",
+                "message": "Do not claim success. Reconcile booking status before retrying writes; unknown reads are not negative results.",
+            }
+        except IntakeUnavailable:
+            result = {
+                "status": "save_unconfirmed",
+                "message": "Do not claim the intake was saved or a technician was requested.",
+            }
+        return result, request_args
+
     @app.post("/vapi/tools", dependencies=[Depends(authenticate)])
     async def tool_calls(body: ToolEnvelope) -> dict:
-        """Validate and dispatch each tool call, then audit the outcome."""
+        """Validate and dispatch each tool call, then audit the outcome.
+
+        Vapi gives a tool request about 10 s. Each call gets at most TOOL_TIMEOUT and the
+        whole batch at most BATCH_BUDGET, so the webhook always answers; an unfinished
+        call reports an unconfirmed outcome instead of returning nothing.
+        """
         message = body.message
         results = []
+        deadline = time.monotonic() + BATCH_BUDGET_SECONDS
         for tool in message.toolCallList:
             started = time.monotonic()
-            if tool.function.name not in {"update_intake", *WORKFLOW_SCHEMAS}:
-                result = {"status": "unsupported_tool"}
-            else:
-                try:
-                    schema = {"update_intake": UpdateIntake, **WORKFLOW_SCHEMAS}[
-                        tool.function.name
-                    ]
-                    request = (
-                        schema.model_validate_json(tool.function.arguments)
-                        if isinstance(tool.function.arguments, str)
-                        else schema.model_validate(tool.function.arguments)
-                    )
-                    if tool.function.name in WORKFLOW_SCHEMAS:
-                        if workflow_store is None:
-                            raise WorkflowUnavailable
-                        result = await workflow_store.execute(
-                            tool.function.name, message.call.id, tool.id, request
-                        )
-                    else:
-                        if intake_store is None:
-                            raise IntakeUnavailable("Intake storage not configured")
-                        result = await intake_store.update(
-                            message.call.id,
-                            tool.id,
-                            message.originating_number(),
-                            request,
-                        )
-                except ValidationError as exc:
-                    result = {
-                        "status": "invalid_arguments",
-                        "errors": [
-                            {"field": list(e["loc"]), "message": e["msg"]}
-                            for e in exc.errors(include_input=False, include_url=False)
-                        ],
-                    }
-                except WorkflowUnavailable:
-                    result = {
-                        "status": "outcome_unconfirmed",
-                        "message": "Do not claim success. Reconcile booking status before retrying writes; unknown reads are not negative results.",
-                    }
-                except IntakeUnavailable:
-                    result = {
-                        "status": "save_unconfirmed",
-                        "message": "Do not claim the intake was saved or a technician was requested.",
-                    }
+            request_args = None
+            try:
+                async with asyncio.timeout(
+                    max(0.1, min(TOOL_TIMEOUT_SECONDS, deadline - started))
+                ):
+                    result, request_args = await run_tool(message, tool)
+            except TimeoutError:
+                result = {
+                    "status": "save_unconfirmed"
+                    if tool.function.name == "update_intake"
+                    else "outcome_unconfirmed",
+                    "message": "Timed out. Do not claim success; check state before retrying.",
+                }
+            result = shape(tool.function.name, result, request_args)
+            result = retries.observe(message.call.id, tool.function.name, result)
             if audit_store is not None:
                 await audit_store.tool(
                     message.call.id,

@@ -308,11 +308,14 @@ def test_maintenance_does_not_become_priority_due_to_weather_alone(flow):
     )
 
 
-def test_gas_stays_emergency_and_skips_contact_lookup(flow):
+def test_gas_stays_emergency_and_keeps_contact_unconfirmed(flow):
     flow.weather(hot=True)
     r = flow.save({"caller_name": "Maya Chen", "gas_smell_reported": True})
     assert r["state"]["triage"]["level"] == "emergency"
-    assert "service_address" not in r["state"]["details"]
+    details = r["state"]["details"]
+    # O7: the dispatcher can reach and locate the caller; nothing is confirmed.
+    assert details["callback_number"] and details["callback_confirmed"] is False
+    assert details["service_zip"] and details["address_confirmed"] is False
 
 
 def test_address_change_rechecks_weather_and_membership(flow):
