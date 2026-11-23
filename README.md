@@ -17,7 +17,7 @@ ntfy push notifications.
 | Residential or commercial | "My home/apartment" is residential; landlords count. Commercial or non-HVAC work is politely declined. |
 | Already a member? | Checked automatically against the confirmed name and service address, within a one-second budget, for routine **and** priority calls. "Active" is mentioned once; an unverified result is never called "not a member". |
 | Collect what a technician needs | Name, full service address with unit, confirmed callback, and the issue. Returning callers get their address on file offered back ("I have 152 West 72nd on your account. Is that where?"). Address and callback are confirmed in one question. |
-| Routine vs. urgent | **Emergency:** gas smell, CO alarm, smoke/burning smell, sparking. Evacuation and 911 guidance plays *before* any backend call, there is no booking, and the dispatcher is paged. **Urgent priority:** no heat or no AC with a vulnerable person at home, or the caller can't safely wait. **Elevated priority:** an outage during qualifying cold or heat in the live forecast (≤40°F / ≥90°F or an NWS alert). |
+| Routine vs. urgent | **Emergency:** gas smell, CO alarm, smoke/burning smell, sparking. Evacuation and 911 guidance is the first thing the caller hears and plays while the emergency is recorded, there is no booking, and the dispatcher is paged; if the caller hangs up before the tool request lands, an end-of-call check records it from the transcript. **Urgent priority:** no heat or no AC with a vulnerable person at home, or the caller can't safely wait. **Elevated priority:** an outage during qualifying cold or heat in the live forecast (≤40°F / ≥90°F or an NWS alert). |
 | Flag priority immediately | Every priority or emergency case is recorded and a dispatcher alert is pushed within about a second, in the same database transaction, with no caller PII in the alert. Priority calls can book earlier on-call windows. |
 | Book or confirm next steps | Real availability (technician zones, skills, shifts, existing jobs) → one offered window → explicit yes → atomic booking with an assigned technician. If nothing fits: an honest follow-up record plus an alert, never a made-up ETA. |
 | Wants a person | During office hours: live transfer. After hours: callback request plus dispatcher alert, or transfer to the on-call line for priority calls. |
@@ -59,7 +59,11 @@ enforces every booking rule in one transaction.
   that exact window. Proposals expire in two minutes and are rechecked atomically at
   booking.
 - **Safety beats everything.** The emergency tool's fixed evacuation message is spoken by
-  Vapi before the HTTP request, so the guidance doesn't depend on our backend being up.
+  Vapi the moment the tool is called, so the guidance doesn't depend on our backend being
+  up. The request runs in parallel (a blocking message lost the record when callers hung
+  up to evacuate), and the end-of-call report re-checks what the caller said: a reported
+  gas smell, CO alarm, smoke/burning smell or sparking with no saved emergency is recorded
+  and paged then (`safety_backstop.py`).
 - **Caller ID is a hint, not identity.** It pre-fills an *unconfirmed* callback, and an
   address only after a unique name match. Nothing is used without the caller's yes.
 - **Coverage by ZIP.** All residential ZIPs in New York, Kings and Queens counties.
@@ -96,7 +100,9 @@ uv run --env-file .env python -m revin_take_home.configure_vapi --apply \
 ```
 
 `configure_vapi --apply` waits until the backend serves this exact prompt and tool
-fingerprint, creates new versioned tools (live calls keep their old ones), points the
+fingerprint, creates new versioned tools (live calls keep their old ones), applies the
+voice settings in `config/voice-baseline.json` (Soniox endpointing and vocabulary, TTS
+chunking, interruption threshold, denoising), points the
 assistant and the phone number's `assistant-request` webhook at the backend, adds the
 transfer tool if `TRANSFER_NUMBER` is set, and saves a private rollback snapshot under
 `eval-results/`. Roll back with `--apply --restore <backup.json>`. It never starts a call.
@@ -134,7 +140,9 @@ Database tests run each scenario against real migrations in a transaction that i
 back. They cover triage, coverage, booking races, proposal expiry, idempotent retries,
 emergency handling and alert leasing. Paid Vapi chat simulations (`evals/scenarios.json`, 28
 scenarios, opt-in with `--allow-paid-tests`) check both the conversation and what was
-actually written to the database. They don't test audio, accents, barge-in or telephone
+actually written to the database. `--mode voice --candidate-voice` tries this checkout's
+tool messages and voice settings on the simulated agent only, without touching the live
+assistant. They don't test real phone audio, accents, barge-in or telephone
 routing; those need real calls.
 
 ## Where the logic lives

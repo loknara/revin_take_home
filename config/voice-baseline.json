@@ -1,15 +1,16 @@
 {
   "model": {
     "provider": "openai",
-    "model": "gpt-4.1",
-    "promptCacheRetention": "24h"
+    "model": "gpt-4.1"
   },
   "transcriber": {
     "provider": "soniox",
     "model": "stt-rt-v6",
     "language": "en",
-    "languages": ["en"],
-    "endpointLatencyAdjustmentLevel": 1,
+    "languages": [
+      "en"
+    ],
+    "endpointLatencyAdjustmentLevel": 2,
     "endpointSensitivity": 0,
     "maxEndpointDelayMs": 1500,
     "customVocabulary": [
@@ -41,12 +42,28 @@
       "Williamsburg"
     ],
     "contextGeneral": [
-      {"key": "domain", "value": "Residential heating and air-conditioning service calls"},
-      {"key": "location", "value": "New York City: Manhattan, Brooklyn and Queens"},
-      {"key": "address_format", "value": "Queens house numbers are hyphenated, for example 35-20 82nd Street or 104-15 Queens Boulevard"},
-      {"key": "phone_format", "value": "US phone numbers read in groups, for example 212-555-0188"}
+      {
+        "key": "domain",
+        "value": "Residential heating and air-conditioning service calls"
+      },
+      {
+        "key": "location",
+        "value": "New York City: Manhattan, Brooklyn and Queens"
+      },
+      {
+        "key": "address_format",
+        "value": "Queens house numbers are hyphenated, for example 35-20 82nd Street or 104-15 Queens Boulevard"
+      },
+      {
+        "key": "phone_format",
+        "value": "US phone numbers read in groups, for example 212-555-0188"
+      }
     ],
-    "fallbackPlan": {"autoFallback": {"enabled": true}}
+    "fallbackPlan": {
+      "autoFallback": {
+        "enabled": true
+      }
+    }
   },
   "voice": {
     "provider": "vapi",
@@ -55,13 +72,19 @@
     "chunkPlan": {
       "enabled": true,
       "minCharacters": 30,
-      "punctuationBoundaries": [".", "!", "?"]
+      "punctuationBoundaries": [
+        ".",
+        "!",
+        "?"
+      ]
     }
   },
   "stopSpeakingPlan": {
     "numWords": 2
   },
   "backgroundSpeechDenoisingPlan": {
-    "smartDenoisingPlan": {"enabled": true}
+    "smartDenoisingPlan": {
+      "enabled": true
+    }
   }
 }
