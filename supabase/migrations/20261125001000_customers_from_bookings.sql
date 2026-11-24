@@ -7,7 +7,7 @@
 --  * Reuse a customer already on that number with the same first name; never overwrite one.
 --    A different name on a known number is added as another person (a shared phone).
 --  * Marked source='phone_agent' with the call that created it, for the office to review.
---  * Test calls (eval_) are skipped so simulations don't fill the customer list.
+--  * Test calls (eval_, test_) are skipped so simulations and tests don't fill the customer list.
 --  * Never blocks the booking: any problem here is logged and the booking stands.
 -- No membership is created: being a customer and having a plan are separate.
 
@@ -19,7 +19,7 @@ create function public.remember_booked_caller() returns trigger
 language plpgsql security definer set search_path='' as $$
 declare c public.call_intakes%rowtype; d jsonb := new.intake_snapshot; first text; cust text; num text;
 begin
- if new.call_id like 'eval\_%' then return null; end if;
+ if new.call_id like 'eval\_%' or new.call_id like 'test\_%' then return null; end if;
  select * into c from public.call_intakes where call_id=new.call_id;
  if c.originating_number is null or coalesce(trim(d->>'caller_name'),'')=''
     or coalesce(d->>'address_confirmed','')<>'true' or coalesce(d->>'service_zip','') !~ '^[0-9]{5}$' then

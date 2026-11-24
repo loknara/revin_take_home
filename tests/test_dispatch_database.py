@@ -223,6 +223,12 @@ def test_concurrent_bookings_cannot_take_same_technician_across_slots():
                 == 1
             )
         finally:
+            # Committed bookings also create customers (remember_booked_caller): remove them.
+            agent = [r[0] for r in db.execute(
+                "select id from public.customers where created_by_call=any(%s)", (calls,)
+            ).fetchall()]
+            db.execute("delete from public.service_locations where customer_id=any(%s)", (agent,))
+            db.execute("delete from public.customers where id=any(%s)", (agent,))
             db.execute(
                 "delete from public.call_intakes where call_id=any(%s)", (calls,)
             )

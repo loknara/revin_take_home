@@ -234,7 +234,9 @@ def verify_database(case, evidence):
         checks.append({"name": name, "passed": bool(ok)})
 
     rows = evidence.get("call_intakes", [])
-    check("one_saved_intake", len(rows) == 1)
+    # Some calls (cancelling a visit) legitimately never create an intake record.
+    no_intake = case["expected"].get("no_intake", False)
+    check("no_saved_intake" if no_intake else "one_saved_intake", len(rows) == (0 if no_intake else 1))
     state = rows[0] if len(rows) == 1 else {}
     details = state.get("details", {})
     expected = case["expected"]
@@ -287,10 +289,11 @@ def verify_database(case, evidence):
     events = evidence.get("intake_events", [])
     revisions = sorted(e.get("applied_revision", -1) for e in events)
     revision = state.get("revision", 0)
-    check(
-        "intake_audit_complete",
-        revision > 0 and revisions == list(range(1, revision + 1)),
-    )
+    if not no_intake:
+        check(
+            "intake_audit_complete",
+            revision > 0 and revisions == list(range(1, revision + 1)),
+        )
     operations = [e.get("operation_id") for e in events]
     check("no_duplicate_operations", len(operations) == len(set(operations)))
     if expected.get("priority_before_address"):

@@ -196,6 +196,9 @@ def _intake_guidance(result, request):
             parts = {"address_confirmed": "address", "callback_confirmed": "number"}
             what = " and ".join(parts[k] for k in result.get("unheard", []) if k in parts) or "details"
             hint = f"The caller hasn't heard the {what} read back: read it to them now (a number digit by digit), END YOUR TURN, and confirm only after they say yes."
+            if "callback_confirmed" in result.get("unheard", []) and expected.get("confirmation_callback"):
+                hint += (" The number you're confirming is " + expected["confirmation_callback"]
+                         + "; if that isn't the number you read aloud, save the caller's number first.")
         elif result.get("saved_other_changes"):
             hint = "The new details are saved but not confirmed: read expected back to the caller now, END YOUR TURN, and confirm only after they say yes."
         elif result.get("reason") == "quote_is_readback":

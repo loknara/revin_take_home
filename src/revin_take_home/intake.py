@@ -1,10 +1,11 @@
 """Incremental intake: model-reported facts, scoped to provider call metadata."""
 
 import asyncio
+import re
 from typing import Annotated, Literal, Protocol, Self
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .membership import (
     MembershipUnavailable,
@@ -16,6 +17,13 @@ MEMBERSHIP_TIMEOUT_SECONDS = 1.0
 
 ShortText = Annotated[str, Field(min_length=1, max_length=500, pattern=r"\S")]
 RiskFact = bool | Literal["unknown"]
+
+
+NOT_A_NAME = {
+    "yeah", "yes", "yep", "yup", "sure", "ok", "okay", "um", "uh", "hmm", "hi", "hello", "hey",
+    "it's", "its", "it", "is", "this", "that", "my", "name", "i'm", "im", "i", "am", "no", "so",
+    "well", "right", "alright", "thanks", "thank", "you", "of", "course", "speaking",
+}
 
 
 class IntakeChanges(BaseModel):
@@ -51,6 +59,16 @@ class IntakeChanges(BaseModel):
     vulnerable_resident: RiskFact | None = None
     unsafe_to_wait: RiskFact | None = None
     gas_smell_reported: RiskFact | None = None
+
+    @field_validator("caller_name")
+    @classmethod
+    def check_caller_name(cls, value):
+        """A filler word isn't a name: a split turn once saved "Yeah, sure." as the caller."""
+        if value is not None:
+            words = [w for w in re.findall(r"[a-z']+", value.lower()) if w]
+            if not words or all(w in NOT_A_NAME for w in words):
+                raise ValueError("caller_name must be the caller's name; ask for it again")
+        return value
 
     @model_validator(mode="after")
     def check_patch(self) -> Self:

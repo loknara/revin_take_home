@@ -56,3 +56,14 @@ def test_workflow_tools_ignore_the_spoken_filler():
     result = post("find_my_appointment", json.dumps({"bot_say": "Let me pull that up"}), workflow_store=workflow)
     assert result["status"] == "found"
     assert workflow.calls == [("find_my_appointment", {})]
+
+
+@pytest.mark.parametrize("name, ok", [("Yeah, sure.", False), ("okay", False), ("It's", False),
+                                      ("Maya Chen", True), ("Jordan", True), ("O'Brien", True)])
+def test_filler_words_are_not_saved_as_a_name(name, ok):
+    store = Store()
+    result = post("update_intake", {"expected_revision": 1, "caller_quote": name, "changes": {"caller_name": name}},
+                  intake_store=store)
+    assert (result["status"] == "saved") is ok
+    if not ok:
+        assert result["bad_fields"] == ["changes.caller_name"] and store.received == []

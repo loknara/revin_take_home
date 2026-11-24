@@ -11,8 +11,8 @@
       "en"
     ],
     "endpointLatencyAdjustmentLevel": 2,
-    "endpointSensitivity": 0.3,
-    "maxEndpointDelayMs": 500,
+    "endpointSensitivity": 0.15,
+    "maxEndpointDelayMs": 1000,
     "customVocabulary": [
       "Summit Air",
       "HVAC",

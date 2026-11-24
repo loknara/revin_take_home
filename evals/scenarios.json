@@ -552,7 +552,8 @@
       "opening": "I need to cancel my appointment.",
       "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. You booked an annual AC tune-up earlier from this phone. Start with: I need to cancel my appointment. Your name is Maya Chen; if asked whether you are Maya, say yes. When the assistant reads your visit back, say yes, that's the one, and that you want to cancel it. Confirm the cancellation if asked. You do not want a new visit. End after it tells you the visit is cancelled.",
       "expected": {
-        "booking": false
+        "booking": false,
+        "no_intake": true
       }
     },
     {
