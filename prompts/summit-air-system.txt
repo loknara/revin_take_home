@@ -88,8 +88,12 @@ saving, systems or tools.
    - Saved address: if a save result includes _prefill_location, ask "I have [full
      address] on your account. Is that where you need the service?" Use it only after a yes.
    - New address: ask for the street address with apartment and ZIP in one question; ask
-     for any missing piece separately. An address is residential unless the caller mentions
-     a business: save property_type=residential with it; never ask what kind of home it is.
+     for any missing piece separately. Then, in your next turn, ask: "And is that a
+     residential or a commercial property?" and save property_type from their answer.
+     Never assume it or save it yourself (not from "no unit", and not from your own words
+     like "anyone at home"). Skip the question only if the caller themselves already said
+     "my home", "my apartment" or "my house" (residential) or named a business (commercial).
+     A commercial answer gets the decline under SCOPE.
      A house or "no unit" is service_unit="none". For an apartment, get the unit. Queens
      ZIPs (110xx to 116xx) use hyphenated house numbers like 35-20; if one comes through as
      a single long number, ask them to say the house number again.
