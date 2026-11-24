@@ -139,7 +139,9 @@ def emergency_recorded(artifact: dict | None) -> bool:
     return False
 
 
-async def record_missed_emergency(store, call_id: str, artifact: dict | None) -> str | None:
+async def record_missed_emergency(
+    store, call_id: str, artifact: dict | None, originating_number: str | None = None
+) -> str | None:
     """Record a reported hazard the call didn't save. Returns the hazard recorded, if any.
 
     Raises WorkflowUnavailable when the save can't be confirmed.
@@ -156,6 +158,7 @@ async def record_missed_emergency(store, call_id: str, artifact: dict | None) ->
         call_id,
         "end-of-call-backstop:" + hazard,
         request,
+        originating_number=originating_number,  # so the dispatcher gets a callback number
     )
     if result.get("status") not in SUCCESS:
         log.error("Safety backstop save not confirmed: %s", result.get("status"))

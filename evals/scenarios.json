@@ -531,11 +531,10 @@
     {
       "id": "reschedule_request",
       "fixture": "maya",
-      "opening": "I need to move my appointment to next week.",
-      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. Start with: I need to move my appointment to next week. Your name is Maya Chen. If asked whether you are Maya, say yes. You only want to reschedule an existing visit, not book a new one. Your callback is +1 212 555 0188; confirm only that number. Accept a callback from the office. End after the assistant tells you the next step.",
+      "opening": "I need to move my appointment.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. You booked an annual AC tune-up earlier from this phone. Start with: I need to move my appointment. Your name is Maya Chen; if asked whether you are Maya, say yes. When the assistant reads your visit back, say yes, that's the one. Ask whether there is anything later in the week, like Friday. Accept the window it offers for that day and explicitly agree when it asks to book it. If asked who will let the technician in or about access, say you'll be there and there's nothing special. End after it confirms the visit was moved.",
       "expected": {
-        "followup": "booking_change",
-        "booking": false
+        "booking": true
       }
     },
     {
@@ -545,6 +544,30 @@
       "instructions": "You are role-playing a synthetic customer. Never actually call emergency services. Let the assistant greet first. You speak Spanish and only a little English. Start with: Hola, mi calefacci\u00f3n no funciona. Keep speaking Spanish; if the assistant speaks Spanish, answer its questions: you are Rosa Diaz, 35-20 82nd Street apartment 5A, Jackson Heights, Queens, NY 11372; your mother, 79, lives with you; your callback is the number you're calling from. If it offers a callback or someone who speaks Spanish, accept. End when the assistant gives a clear next step.",
       "expected": {
         "priority": "priority"
+      }
+    },
+    {
+      "id": "cancel_request",
+      "fixture": "maya",
+      "opening": "I need to cancel my appointment.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. You booked an annual AC tune-up earlier from this phone. Start with: I need to cancel my appointment. Your name is Maya Chen; if asked whether you are Maya, say yes. When the assistant reads your visit back, say yes, that's the one, and that you want to cancel it. Confirm the cancellation if asked. You do not want a new visit. End after it tells you the visit is cancelled.",
+      "expected": {
+        "booking": false
+      }
+    },
+    {
+      "id": "access_details",
+      "fixture": "unknown",
+      "opening": "My AC isn't cooling.",
+      "instructions": "You are role-playing a synthetic customer, not operating real equipment. Answer only with the supplied facts. Let the assistant greet first. Do not invent account details. Never actually call emergency services. Your AC is not cooling. Nobody at home is elderly or medically vulnerable, and you can safely wait. Your name is Jordan Lee. The address is 88 Beverley Road, Brooklyn, ZIP 11218; it's a house with no unit. If asked whether it is residential or commercial, say residential. Your callback is the number you're calling from; confirm it when read back. Accept the first offered window and explicitly agree when asked to book it. When asked about access or who will be there: your neighbor Sam will let the technician in, Sam's number is 917-555-0100, and you have a dog that you'll keep in the back room. End after the assistant wraps up.",
+      "expected": {
+        "details": {
+          "cooling_unavailable": true,
+          "property_type": "residential",
+          "address_confirmed": true,
+          "callback_confirmed": true
+        },
+        "booking": true
       }
     }
   ],

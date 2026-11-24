@@ -103,8 +103,9 @@ class FakeStore:
         self.status = status
         self.calls = []
 
-    async def execute(self, name, call_id, operation_id, request):
+    async def execute(self, name, call_id, operation_id, request, originating_number=None):
         self.calls.append((name, call_id, operation_id, request.model_dump()))
+        self.numbers = getattr(self, "numbers", []) + [originating_number]
         return {"status": self.status}
 
 
@@ -230,3 +231,10 @@ def test_emergency_request_accepts_and_drops_a_stray_revision():
 
     request = SafetyEmergency(hazard="gas_smell", caller_quote="I smell gas", expected_revision=0)
     assert request.model_dump(mode="json") == {"hazard": "gas_smell", "caller_quote": "I smell gas"}
+
+
+def test_backstop_passes_the_caller_id_for_a_callback_number():
+    store = FakeStore()
+    data = artifact("I can smell gas near my furnace.")
+    asyncio.run(record_missed_emergency(store, "call-1", data, "+17185550123"))
+    assert store.numbers == ["+17185550123"]

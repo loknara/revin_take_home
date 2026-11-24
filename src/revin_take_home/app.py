@@ -279,7 +279,10 @@ def create_app(
         backstop_failed = False
         try:
             if await record_missed_emergency(
-                workflow_store, body.message.call.id, body.message.artifact
+                workflow_store,
+                body.message.call.id,
+                body.message.artifact,
+                body.message.originating_number(),
             ):
                 if alert_worker is not None:
                     alert_worker.wake.set()
